@@ -8,13 +8,19 @@ is `vm_`-prefixed (see `0001_init.sql`'s header) and the deploy boundary is
 scoped to exactly `vm_*` tables + the `resolve-move` / `sweep-missing-players`
 functions.
 
-**Current status:** schema (migrations 0001-0003), both edge functions
-(`resolve-move` v26, `sweep-missing-players` v2), and the full app — auth,
-lobby (create/join rooms, seat claiming), and a realtime gameplay screen — are
-all built and, for the backend half, deployed and live against the real
-project. The app itself builds cleanly (`cd app && npm run build`) but is not
-yet hosted anywhere reachable by a browser — see "Known gaps" for why and what
-it needs.
+**Current status: live and verified end-to-end.** Schema (migrations
+0001-0003), both edge functions (`resolve-move` v27, `sweep-missing-players`
+v3), and the full app — auth, lobby (create/join rooms, seat claiming), and a
+realtime gameplay screen — are deployed and confirmed working against the
+real project. The app is hosted on Railway at
+`arena-web-production-6e64.up.railway.app`, built from this repo's `main`
+branch (root directory `app`). A full live run was driven through a real
+browser against the real deployed app: email sign-up + confirmation, guest
+sign-in (once anonymous auth was enabled — see below), room creation with an
+AI seat, `START_GAME`, buying assets, ending a turn, AI-chain resolution,
+fortune-card interstitials, and voluntary resign-to-AI (`CONVERT_SEAT_TO_AI`)
+with cash/net-worth/businesses preserved across the takeover — all confirmed
+working live, no console errors. See "Known gaps" for what's still open.
 
 Design rationale, the decisions that led here, and the full architecture
 writeup live in the VentureFlow project's roadmap doc
@@ -175,21 +181,22 @@ decision; the replayed game state is always the authority.
 
 ## Known gaps
 
-- **The app isn't hosted anywhere live yet.** It builds cleanly to static
-  files (`cd app && npm run build` → `app/dist/`), but getting it onto a real
-  URL needs either a git host Render can clone from, or a host that accepts a
-  direct artifact upload — and this environment had no credentials for
-  either (no GitHub/Railway connector, no push access anywhere) when this was
-  built. See "Deploying the app" below for the concrete options.
-- **No live HTTP smoke test of `resolve-move`/`sweep-missing-players` has
-  been run.** The functions are deployed and the deploy itself succeeded
-  (Supabase's own bundler would have rejected a broken payload), and the
-  exact deployed bundle passed `npm test` before deploying — but actually
-  calling the live HTTPS endpoints needs either the app to be hosted (so it
-  can be driven from a real browser) or `scripts/smoke-test-live.mjs` run
-  from a machine with normal network access — this environment's outbound
-  network is proxied and blocks `*.supabase.co` directly. Once the app is
-  hosted, driving a real game through it in a browser doubles as this test.
+- **Supabase Auth's Site URL / redirect URL is still `http://localhost:3000`.**
+  Email confirmation links work (they verify the account server-side
+  regardless of where they redirect), but after clicking one the browser
+  gets redirected to `localhost:3000` instead of back to the live app. Fix
+  in the Supabase dashboard: Authentication → URL Configuration → set Site
+  URL to `https://arena-web-production-6e64.up.railway.app` (and add it to
+  Redirect URLs). Confirmed via a real signup during live testing — the
+  account itself came through fine, only the post-confirmation redirect is
+  wrong.
+- **`sweep-missing-players` has no schedule wired up.** It needs to run
+  periodically (e.g. hourly) via `pg_cron` + `pg_net` or Supabase's Cron
+  integration — see `INSTRUCTIONS.md` step 4b. Neither extension is enabled
+  on the project yet; enabling one is a project-wide change this build
+  deliberately left for you to approve rather than doing unasked. Voluntary
+  resign (`CONVERT_SEAT_TO_AI`, already in the app, confirmed working live)
+  works today regardless — only the automatic timeout sweep needs this.
 - **Guest-to-real upgrade isn't wired up.** Supabase's identity-linking makes
   it possible for a guest to later attach a real email/password to the same
   user (keeping their progress), but the UI flow for that isn't built yet.
@@ -206,23 +213,26 @@ decision; the replayed game state is always the authority.
 
 ## Deploying the app
 
-`app/` is a static Vite build — any static host works. Two ways to get it
-live, once you can grant the credentials this environment didn't have:
+`app/` is a static Vite build, currently hosted on Railway
+(`arena-web-production-6e64.up.railway.app`), built directly from this
+repo's `main` branch:
 
-- **Push this repo to GitHub, then point Render at it** (Render is already
-  connected to this Supabase-adjacent workflow): create a repo, `git push`,
-  then create a Render static site with build command
-  `cd app && npm install && npm run build`, publish path `app/dist`, and the
-  two env vars from `app/.env.local` (`VITE_SUPABASE_URL`,
-  `VITE_SUPABASE_ANON_KEY`) set as the site's environment variables.
-- **Any other static host** (Netlify, Vercel, Cloudflare Pages, GitHub
-  Pages) works the same way — build command `npm run build` inside `app/`,
-  publish `app/dist`, same two env vars.
+- **Root directory:** `app`
+- **Build command:** `npm install && npm run build`
+- **Start command:** `npx serve -s dist -l $PORT`
+- **Env vars (build-time — Vite bakes these into the bundle, so they must be
+  set before the build runs, not just at runtime):** `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY`
 
-Once it's live, run through: guest sign-in → create a room → fill/claim
-seats → start game → take a few turns (including letting an AI seat's turn
-auto-chain) → resign → confirm the takeover shows up for everyone. That's
-the full loop this backend was built to support.
+Any other static host (Render, Netlify, Vercel, Cloudflare Pages, GitHub
+Pages) works the same way — same build command, publish `app/dist`, same two
+env vars.
+
+The full loop this backend was built to support — guest/email sign-in →
+create a room → fill/claim seats → start game → take a few turns (including
+letting an AI seat's turn auto-chain) → resign → confirm the takeover shows
+up for everyone — has been run live against the deployed app and backend;
+see "Current status" above.
 
 ## Applying the backend to a fresh Supabase project
 
