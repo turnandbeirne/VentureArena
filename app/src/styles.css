@@ -1,0 +1,421 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f6f5f2;
+  color: #1f2430;
+}
+
+.arena-shell {
+  max-width: 420px;
+  margin: 10vh auto 0;
+  padding: 32px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+}
+
+.arena-shell h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+}
+
+.arena-shell p.subtitle {
+  margin: 0 0 24px;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.arena-field {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.arena-button {
+  width: 100%;
+  padding: 11px 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.arena-button.primary {
+  background: #2f6f4f;
+  color: #fff;
+}
+
+.arena-button.secondary {
+  background: #eef1ee;
+  color: #1f2430;
+}
+
+.arena-error {
+  color: #b3261e;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+}
+
+.arena-switch {
+  text-align: center;
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.arena-switch a {
+  color: #2f6f4f;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Lobby / room / gameplay — wider layout than the auth card               */
+/* ---------------------------------------------------------------------- */
+
+.arena-page {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 20px 60px;
+}
+
+.arena-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.arena-page-header h1 {
+  margin: 0 0 4px;
+}
+
+.arena-page-header .subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.arena-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.arena-panel h2 {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+}
+
+.arena-panel h3 {
+  margin: 16px 0 8px;
+  font-size: 0.95rem;
+}
+
+.arena-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.arena-panel-header h2 {
+  margin: 0;
+}
+
+.arena-panel-highlight {
+  background: #fff8e6;
+  border: 1px solid #f0dca0;
+}
+
+.arena-muted {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.arena-error {
+  background: #fdeceb;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.arena-link-button {
+  background: none;
+  border: none;
+  color: #2f6f4f;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+}
+
+.arena-inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.arena-inline-form .arena-field {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.arena-button-inline {
+  width: auto;
+  margin-bottom: 0;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+
+.arena-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+  margin: 10px 0 6px;
+}
+
+.arena-badge {
+  display: inline-block;
+  background: #eef1ee;
+  color: #444;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 0.75rem;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.arena-badge.status-active {
+  background: #2f6f4f;
+  color: #fff;
+}
+
+.arena-badge.status-open {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
+.arena-badge.status-active {
+  background: #d7ecdf;
+  color: #185c34;
+}
+
+.arena-badge.status-finished {
+  background: #e6e6ea;
+  color: #444;
+}
+
+.arena-badge-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Room list */
+
+.arena-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arena-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  background: #fafaf8;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.arena-list-row:hover {
+  background: #f0f0ec;
+}
+
+.arena-list-row-title {
+  font-weight: 600;
+}
+
+.arena-list-row-sub {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.arena-list-row-arrow {
+  color: #999;
+}
+
+/* Room creation */
+
+.arena-seat-count-picker,
+.arena-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.arena-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #ddd;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.arena-chip.selected {
+  background: #2f6f4f;
+  color: #fff;
+  border-color: #2f6f4f;
+}
+
+.arena-seat-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* Seating panel */
+
+.arena-seats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.arena-seat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fafaf8;
+}
+
+.arena-seat-index {
+  font-size: 0.8rem;
+  color: #999;
+  min-width: 60px;
+}
+
+.arena-seat-occupant {
+  flex: 1;
+}
+
+.arena-seat-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* Gameplay */
+
+.arena-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.arena-player-card {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fafaf8;
+}
+
+.arena-player-card.active {
+  border-color: #2f6f4f;
+  box-shadow: 0 0 0 2px rgba(47, 111, 79, 0.15);
+}
+
+.arena-player-card.mine {
+  background: #f2f8f4;
+}
+
+.arena-player-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.arena-player-avatar {
+  font-size: 1.2rem;
+}
+
+.arena-player-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.82rem;
+  color: #555;
+}
+
+.arena-asset-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arena-asset-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.arena-qty-input {
+  width: 56px;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+}
+
+.arena-business-card {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0;
+}
+
+.arena-log {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.88rem;
+  margin-bottom: 8px;
+}
+
+.arena-log-row {
+  padding: 4px 0;
+  border-bottom: 1px dashed #eee;
+}
+
+.arena-standings {
+  padding-left: 20px;
+}

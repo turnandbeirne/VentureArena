@@ -1,0 +1,1 @@
+import{BUSINESS_NAMES_0 as S}from"./part03_names0.js";import{BUSINESS_NAMES_1 as r}from"./part03_names1.js";import{BUSINESS_NAMES_2 as E}from"./part03_names2.js";var N=[...S,...r,...E];export{N as BUSINESS_NAMES};
