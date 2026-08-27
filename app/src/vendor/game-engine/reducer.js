@@ -8,7 +8,15 @@
 // ============================================================================
 import { createNewGame } from './newGame';
 import { buyAsset, sellAsset, startBusiness, learnSkill, upgradeBusiness } from './actions';
-import { endTurn, acknowledgeFortuneCard, resolveExitOfferDecision, convertSeatToAi } from './turnEngine';
+import {
+  endTurn,
+  acknowledgeFortuneCard,
+  finalizeGameOver,
+  resolveExitOfferDecision,
+  // ⚠️ ARENA-ONLY import — see gameConfig.js's ONLINE_ROOM_MIN_PLAYERS
+  // comment for the re-sync caveat.
+  convertSeatToAi,
+} from './turnEngine';
 import { runAiTurn, runAiStep, aiMaxSteps } from './aiEngine';
 import {
   reactToLogEntries,
@@ -21,6 +29,9 @@ import { isOffensiveName } from './nameFilter';
 import { seedRng } from './rng';
 import { maybeAttachLesson } from './lessons';
 import { seedForDate } from './dailyChallenge';
+import { getAssetConfig } from './market';
+import { turnOrdinal } from './turnClock';
+import { TURN_EXTENSION_SECONDS } from '../data/gameConfig';
 
 const CHAT_MAX_LENGTH = 140;
 
@@ -47,9 +58,70 @@ function appendChat(state, entries) {
 // actions (dispatched one at a time below) and a whole robot turn's worth
 // of actions (RUN_AI_TURN, which appends several log entries at once) flow
 // through, so bot chat "just works" for both without extra wiring per case.
+/** "bought 14 Piggy Banks" / "sold a Tree House". */
+function tradeMessage(verb, qty, assetId) {
+  const asset = getAssetConfig(assetId);
+  const name = asset?.name || assetId;
+  const plural = asset?.plural || name;
+  return qty === 1 ? `${verb} ${name}` : `${verb} ${qty} ${plural}`;
+}
+
+/**
+ * Fold a repeated trade into an existing line for the same player, asset and
+ * turn instead of adding another one.
+ *
+ * Buying with press-and-hold could produce eighty consecutive "bought a
+ * Piggy Bank" entries, which buried everything actually worth reading — the
+ * fortune cards, the badges, what the robots were doing. Now the first
+ * purchase creates the line and each subsequent one edits it in place, so a
+ * turn reads "bought 14 Piggy Banks · bought 2 Lemonade Stands · sold 24
+ * Treasure Chests" however the buys were interleaved.
+ *
+ * Deliberately merges across the whole turn rather than only consecutive
+ * entries, so alternating between two assets still collapses to two lines.
+ * And deliberately NOT applied to anything else: a robot's stepped turn is
+ * supposed to show one readable line per decision (see game/playSpeed.js),
+ * and merging distinct actions would undo that.
+ *
+ * Returns null when there's nothing to merge into.
+ */
+function mergeTrade(log, entry, turnNo) {
+  if (!entry.qty || !entry.assetId) return null;
+  for (let i = log.length - 1; i >= 0; i--) {
+    const existing = log[i];
+    // Stop scanning once we're out of this turn — the log is chronological,
+    // so there's nothing mergeable further back.
+    if (existing.turnNo !== turnNo) return null;
+    if (existing.playerId === entry.playerId && existing.kind === entry.kind) {
+      const qty = (existing.qty || 1) + entry.qty;
+      const merged = { ...existing, qty, message: tradeMessage(entry.verb, qty, entry.assetId) };
+      const next = log.slice();
+      next[i] = merged;
+      return next;
+    }
+  }
+  return null;
+}
+
 function appendLog(state, entries) {
   if (!entries || entries.length === 0) return state;
-  const stamped = entries.map((e) => ({ id: nextLogId(), month: state.month, ...e }));
+  const turnNo = turnOrdinal(state);
+
+  // Fold any repeated trades into existing lines first; whatever's left is
+  // genuinely new and gets stamped and appended below.
+  let mergedLog = state.log;
+  const fresh = [];
+  for (const entry of entries) {
+    const afterMerge = mergeTrade(mergedLog, entry, turnNo);
+    if (afterMerge) mergedLog = afterMerge;
+    else fresh.push(entry);
+  }
+  if (fresh.length === 0) {
+    // Nothing new to say — but the merged text still has to reach the UI.
+    return { ...state, log: mergedLog };
+  }
+  entries = fresh;
+  const stamped = entries.map((e) => ({ id: nextLogId(), month: state.month, turnNo, ...e }));
 
   // At most one financial-concept lesson per appendLog call (see
   // game/lessons.js) — attaching one to every qualifying entry in a batch
@@ -84,7 +156,7 @@ function appendLog(state, entries) {
   // the lesson slot was decided by the priority scan above.
   const withLessons = stamped.map((entry) => (winner && entry.id === winner.id ? { ...entry, lesson: winner.lesson } : entry));
 
-  const withLog = { ...state, log: [...state.log, ...withLessons].slice(-200), seenLessons: nextSeenLessons };
+  const withLog = { ...state, log: [...mergedLog, ...withLessons].slice(-200), seenLessons: nextSeenLessons };
   return appendChat(withLog, reactToLogEntries(withLog, stamped));
 }
 
@@ -115,7 +187,8 @@ export function gameReducer(state, action) {
         action.difficultyId,
         action.botConfigs,
         action.scenarioId,
-        action.humanAvatars
+        action.humanAvatars,
+        { turnTimer: action.turnTimer, weatherSeverityId: action.weatherSeverityId }
       );
       const newState = action.dailyChallengeDate ? { ...built, dailyChallengeDate: action.dailyChallengeDate } : built;
       return appendChat(newState, generateGreeting(newState));
@@ -134,7 +207,7 @@ export function gameReducer(state, action) {
       return withResult(sellAsset(state, action.playerId, action.assetId, action.qty));
 
     case 'START_BUSINESS': {
-      const result = startBusiness(state, action.playerId);
+      const result = startBusiness(state, action.playerId, action.name);
       const next = withResult(result);
       if (!result.ok) return next;
       // A HUMAN player's new business gets a launch celebration (see
@@ -176,7 +249,7 @@ export function gameReducer(state, action) {
       // next robot starts from a clean step count no matter how its
       // predecessor's turn ended (ran out of moves, hit its cap, or was a
       // human turn that never used these fields at all).
-      return appendLog({ ...nextState, aiTurnSteps: 0, aiTurnDone: false }, logEntries);
+      return appendLog({ ...nextState, aiTurnSteps: 0, aiTurnDone: false, turnDeadlineAt: null }, logEntries);
     }
 
     // One robot decision, then stop — the watchable path. hooks/useGame.js
@@ -213,7 +286,13 @@ export function gameReducer(state, action) {
     // server-side replay (no UI to pace) and for tests.
     case 'RUN_AI_TURN': {
       const { state: afterAi, logEntries } = runAiTurn(state, action.playerId);
-      let logged = appendLog(afterAi, logEntries);
+      // Clear the stepped-turn bookkeeping the same way END_TURN does.
+      // Without this, a state that still carried `aiTurnSteps` from a
+      // stepped turn would make the NEXT RUN_AI_STEP think the robot was
+      // already out of moves and skip its whole turn — a real hazard once
+      // a server replaying whole turns and a client stepping them share
+      // the same save.
+      let logged = appendLog({ ...afterAi, aiTurnSteps: 0, aiTurnDone: false }, logEntries);
       // Independent of whatever the bot actually did this turn, it gets a
       // separate small chance at a goof-off sound effect and/or a hype
       // quote — see chatEngine.js's generateBotTurnFlavor().
@@ -227,11 +306,10 @@ export function gameReducer(state, action) {
       return appendLog(nextState, logEntries);
     }
 
-    // A human seat resigning (or being declared missing-in-action) hands
-    // control to an AI stand-in — see turnEngine.js's convertSeatToAi for
-    // why nothing about the player besides `type`/`personalityId`/
-    // `strategyId`/`skillLevelId` changes. Primarily exercised by the
-    // VentureMaker Arena, not local solo/hotseat play.
+    // ⚠️ ARENA-ONLY ADDITION — not part of upstream VentureFlow. See
+    // gameConfig.js's ONLINE_ROOM_MIN_PLAYERS comment: re-syncing this file
+    // from a fresh VentureFlow checkout wipes this case, and
+    // scripts/apply-arena-engine-patches.sh puts it back.
     case 'CONVERT_SEAT_TO_AI': {
       const { state: nextState, logEntries } = convertSeatToAi(state, action.playerId, {
         personalityId: action.personalityId,
@@ -257,6 +335,14 @@ export function gameReducer(state, action) {
       return nextState;
     }
 
+    // Ends the 'gameEnding' pause and shows the actual Game Over screen —
+    // dispatched by any connected client once its own countdown reaches
+    // zero, or immediately by a "See Final Results Now" button. See
+    // turnEngine.js's finalizeGameOver for why this is safe from every
+    // client without an elected-single-client rule.
+    case 'FINALIZE_GAME_OVER':
+      return finalizeGameOver(state);
+
     case 'SEND_CHAT': {
       // The composer (ChatPanel.jsx) already validates before dispatching,
       // but the reducer re-checks too — never trust the UI as the only
@@ -272,6 +358,45 @@ export function gameReducer(state, action) {
       // an actual understanding of what was typed.
       next = appendChat(next, reactToHumanChat(next, humanEntry));
       return next;
+    }
+
+    // --- Turn timer -------------------------------------------------------
+    // The deadline is a wall-clock timestamp COMPUTED BY THE CALLER and
+    // passed in, never read from Date.now() inside the reducer. That keeps
+    // the reducer a pure function of (state, action) — the property the
+    // whole online-multiplayer plan rests on — and means a broadcast action
+    // carries the same deadline to every client instead of each one
+    // inventing its own.
+    case 'START_TURN_TIMER': {
+      if (!state.turnTimer || state.status !== 'playing') return state;
+      // Already running: never restart a clock mid-turn, or a stray
+      // re-render would silently hand the player extra time.
+      if (state.turnDeadlineAt) return state;
+      return { ...state, turnDeadlineAt: action.deadlineAt };
+    }
+
+    case 'EXTEND_TURN': {
+      if (!state.turnTimer || state.status !== 'playing') return state;
+      const index = state.players.findIndex((p) => p.id === action.playerId);
+      // Only the seat actually on the clock can spend its own extension.
+      if (index === -1 || index !== state.activePlayerIndex) return state;
+      const player = state.players[index];
+      if ((player.turnExtensionsLeft || 0) <= 0) {
+        return { ...state, lastError: 'No time extensions left this game.' };
+      }
+      // Extend from whichever is later — the current deadline or now — so
+      // asking early adds a full block rather than partly overlapping the
+      // time still on the clock, and asking late doesn't extend into the
+      // past.
+      const from = Math.max(state.turnDeadlineAt || 0, action.now || 0);
+      return {
+        ...state,
+        lastError: null,
+        turnDeadlineAt: from + TURN_EXTENSION_SECONDS * 1000,
+        players: state.players.map((p, i) =>
+          i === index ? { ...p, turnExtensionsLeft: p.turnExtensionsLeft - 1 } : p
+        ),
+      };
     }
 
     case 'CLEAR_ERROR':

@@ -28,13 +28,37 @@ import { driftPrices } from './market';
 import { tickWeather, getStageInfo } from './weather';
 import { drawFortuneCard, applyCardEffect } from './decks';
 import { evaluateBadges } from './badges';
-import { netWorth, passiveIncomeBreakdown, rollMonthlyIncomeAmounts, resolveBotConfig } from './players';
+import {
+  netWorth,
+  passiveIncomeBreakdown,
+  rollMonthlyIncomeAmounts,
+  allowanceModifierPercent,
+  businessPauseStatus,
+  perUnitIncome,
+  totalUnitsOwned,
+  // ⚠️ ARENA-ONLY import — resolveBotConfig is only exported from players.js
+  // (upstream keeps it private) because convertSeatToAi below needs it. See
+  // gameConfig.js's ONLINE_ROOM_MIN_PLAYERS comment for the re-sync caveat.
+  resolveBotConfig,
+} from './players';
 import { getScenario, checkScenarioObjective } from './scenarios';
 import { resolvePendingRnd, pruneExpiredBoosts, applyBusinessDecline } from './businessUpgrades';
 import { rollBusinessExit } from './businessExits';
 
 export function endTurn(state, playerId) {
+  // Only whoever's turn it actually IS can end it, and only once.
+  //
+  // This used to resolve the seat by `findIndex(p => p.id === playerId)`,
+  // which had two teeth. A repeated dispatch — a double-click, or the
+  // ordinary duplicate-delivery case once actions are broadcast over a
+  // network — ran month-end a second time: two paydays, two sets of
+  // fortune cards, two price drifts, and the calendar jumping two months.
+  // And an unknown or stale playerId gave findIndex === -1, so `nextIndex`
+  // became 0 and the turn silently snapped back to the first seat.
   const currentIndex = state.players.findIndex((p) => p.id === playerId);
+  if (currentIndex === -1 || currentIndex !== state.activePlayerIndex) {
+    return { state, logEntries: [] };
+  }
   const nextIndex = currentIndex + 1;
 
   if (nextIndex < state.players.length) {
@@ -99,7 +123,7 @@ function applyExitOutcome(players, exit, accepted, month) {
         businesses: p.businesses.filter((b) => b.id !== exit.businessId),
         cash: p.cash + exit.payout,
         soldBusinesses: [
-          ...p.soldBusinesses,
+          ...(p.soldBusinesses || []),
           { id: exit.businessId, name: exit.business.name, income: exit.income, multiplier: exit.multiplier, payout: exit.payout, month },
         ],
         // See game/turnEngine.js's ledger notes near finishMonthEnd — every
@@ -216,7 +240,7 @@ function beginMonthEnd(state) {
   // doesn't also collect this month's regular income on top of its
   // lump-sum payout. See game/businessExits.js for exactly why every draw
   // here is unconditional/fixed-order on the environment stream.
-  const exit = rollBusinessExit(players, month);
+  const exit = rollBusinessExit(players);
   let extraFortuneRecap = null;
   if (exit) {
     const targetPlayer = players.find((p) => p.id === exit.playerId);
@@ -266,7 +290,7 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
   // Stored on nextState below so the UI shows a stable already-rolled
   // figure until the next month-end reroll, instead of re-rolling on every
   // render.
-  const weatherIncomeAmounts = rollMonthlyIncomeAmounts(state.weather);
+  const weatherIncomeAmounts = rollMonthlyIncomeAmounts(state.weather, state.weatherSeverityId);
 
   // 3b) Call out an occasional better-than-usual interest month on any
   // interest-bearing asset (currently just the Piggy Bank — see
@@ -295,9 +319,16 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
   // prices, and this month's weatherIncomeAmounts now, since Tree House
   // rent is dynamic and Lemonade Stand income is rolled — see players.js's
   // effectiveRentPerUnit/perUnitIncome.
-  const allowance = state.monthlyAllowance ?? MONTHLY_ALLOWANCE;
+  const baseAllowance = state.monthlyAllowance ?? MONTHLY_ALLOWANCE;
   const incomeContext = { allPlayers: players, prices: state.assetPrices, month, weatherIncomeAmounts };
   players = players.map((p) => {
+    // A fortune card can temporarily change this player's allowance (a lost
+    // side job, an expanded round — see game/decks.js's allowanceModifier).
+    // Floored at 0 so stacked penalties can never invoice the player for
+    // showing up.
+    const allowancePct = allowanceModifierPercent(p, month);
+    const allowance = Math.max(0, Math.round(baseAllowance * (1 + allowancePct / 100)));
+    const pause = businessPauseStatus(p, month);
     // passiveIncomeBreakdown gives both the exact total (identical to the
     // old passiveIncome() call — same formula, same single final rounding,
     // so the actual cash credited is unchanged) AND its individually-
@@ -309,14 +340,26 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
     // exactly, only the descriptive breakdown text is approximate.
     const breakdown = passiveIncomeBreakdown(p, incomeContext);
     const income = allowance + breakdown.total;
-    const parts = [`$${allowance} allowance`];
+    const parts = [`$${allowance} allowance${allowancePct ? ` (${allowancePct > 0 ? '+' : ''}${allowancePct}% this month)` : ''}`];
     if (breakdown.businessIncome) parts.push(`$${breakdown.businessIncome} business income`);
+    if (pause) parts.push('business income paused');
     if (breakdown.assetIncome) parts.push(`$${breakdown.assetIncome} asset income`);
     if (breakdown.passiveBonus) parts.push(`$${breakdown.passiveBonus} card bonus`);
     return {
       ...p,
       cash: p.cash + income,
+      // Drop allowance modifiers that have run out, so the list can't grow
+      // forever across a long game. Done AFTER this month's payday, since
+      // `expiresMonth` is the last month a modifier still applies to.
+      allowanceMods: (p.allowanceMods || []).filter((m) => m.expiresMonth > month),
       ledger: [...(p.ledger || []), { month, type: 'in', amount: income, source: 'Payday', detail: parts.join(' + ') }],
+      // Per-player timelines for the end-of-game recap (see
+      // game-ui/components/GameEndingRecap.jsx) — same one-point-per-completed-month
+      // convention as netWorthHistory below, captured right here since this
+      // is where these two numbers already get computed for the actual cash
+      // credit, so there's no second calculation to keep in sync.
+      passiveIncomeHistory: [...(p.passiveIncomeHistory || []), { month, passiveIncome: breakdown.total }],
+      totalIncomeHistory: [...(p.totalIncomeHistory || []), { month, income }],
     };
   });
   logEntries.push({ icon: '💰', message: `Payday! Everyone collected their allowance and passive income.`, kind: 'payday' });
@@ -327,7 +370,7 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
   for (let i = 0; i < players.length; i++) {
     const player = players[i];
     const { deckId, card } = drawFortuneCard(state.weather);
-    const applied = applyCardEffect(player, prices, card);
+    const applied = applyCardEffect(player, prices, card, month);
     // Only some fortune cards move cash (a plain $ bump/hit, a % of cash,
     // or a per-unit-owned amount — see decks.js's applyCardEffect); others
     // just shift an asset's price or hand out a skill token. Comparing
@@ -335,11 +378,18 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
     // type(s) directly — catches every current and future cash-moving
     // effect type without this file needing to know its name.
     const cashDelta = applied.player.cash - player.cash;
+    const withCardHistory = {
+      ...applied.player,
+      fortuneCardHistory: [
+        ...(applied.player.fortuneCardHistory || []),
+        { month, deckId, card, description: applied.description },
+      ],
+    };
     players[i] = cashDelta !== 0
       ? {
-          ...applied.player,
+          ...withCardHistory,
           ledger: [
-            ...(applied.player.ledger || []),
+            ...(withCardHistory.ledger || []),
             {
               month,
               type: cashDelta > 0 ? 'in' : 'out',
@@ -349,7 +399,7 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
             },
           ],
         }
-      : applied.player;
+      : withCardHistory;
     prices = applied.prices;
     logEntries.push({
       icon: card.icon,
@@ -368,7 +418,7 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
   }
 
   // 6) Price drift for the month that's ending.
-  const drift = driftPrices(prices, state.weather);
+  const drift = driftPrices(prices, state.weather, state.weatherSeverityId);
   prices = drift.prices;
 
   // 7) Badges — passiveIncomeAtLeast needs the same allPlayers/prices/
@@ -403,15 +453,35 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
   const tick = tickWeather(state.weather);
   if (tick.changed) {
     const info = getStageInfo(tick.weather);
-    logEntries.push({ icon: info.icon, message: `The weather shifted to ${info.name}!`, kind: 'weather' });
+    // `mood` rides along so useGameSounds.js can pick a good-weather vs
+    // bad-weather sound (birds vs. thunder) instead of one generic cue —
+    // same boom/peak/rebound = good, dip/bust = bad split as isGoodWeather().
+    logEntries.push({ icon: info.icon, message: `The weather shifted to ${info.name}!`, kind: 'weather', mood: info.mood });
   }
 
   // 10) Net worth history snapshot — one point per completed month, used by
   // the game-over screen's growth chart (see components/NetWorthChart.jsx).
   players = players.map((p) => ({
     ...p,
-    netWorthHistory: [...p.netWorthHistory, { month, netWorth: netWorth(p, prices) }],
+    netWorthHistory: [...(p.netWorthHistory || []), { month, netWorth: netWorth(p, prices) }],
   }));
+
+  // 10b) Per-asset price/cashflow history snapshot — same one-point-per-
+  // completed-month convention as the net worth history just above, used by
+  // AssetHistoryModal.jsx's "📊 History" chart on each asset shop card.
+  // Cashflow here is the asset's OWN per-unit monthly income (perUnitIncome
+  // — the same function AssetShop.jsx already uses to show "current
+  // per-unit income" on the card), not any one player's actual take: it's
+  // asset-intrinsic, so it doesn't matter who (if anyone) owns it. Uses the
+  // just-drifted post-fortune-card prices, same as everything else settled
+  // this month-end.
+  const assetHistory = { ...(state.assetHistory || {}) };
+  for (const asset of ASSETS) {
+    const price = prices[asset.id] ?? asset.basePrice;
+    const totalOwned = totalUnitsOwned(players, asset.id);
+    const cashflow = perUnitIncome(asset, { price, totalOwned, weatherIncomeAmounts });
+    assetHistory[asset.id] = [...(assetHistory[asset.id] || []), { month, price, cashflow }];
+  }
 
   // 11) Lead-change callout — a bit of extra excitement when the standings
   // actually flip (skipped in a solo/no-real-leader-yet situation — see
@@ -443,11 +513,13 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
     weatherIncomeAmounts,
     month: isGameOver ? state.month : nextMonth,
     activePlayerIndex: 0,
-    status: isGameOver ? 'gameover' : 'monthRecap',
+    status: 'monthRecap',
+    pendingGameOver: isGameOver,
     fortuneRecap,
     fortuneRecapIndex: 0,
     pendingExitOffer: null,
     pendingMonthEnd: null,
+    assetHistory,
   };
 
   if (isGameOver) {
@@ -485,6 +557,11 @@ export function resolveExitOfferDecision(state, playerId, accept) {
   return finishMonthEnd(state, outcome.players, [outcome.logEntry], month, scenario, leaderBefore, outcome.fortuneRecapEntry);
 }
 
+// ⚠️ ARENA-ONLY ADDITION — not part of upstream VentureFlow. See
+// gameConfig.js's ONLINE_ROOM_MIN_PLAYERS comment: re-syncing this file
+// from a fresh VentureFlow checkout wipes this function, and
+// scripts/apply-arena-engine-patches.sh puts it back.
+//
 /**
  * Hand a human seat over to AI control — a voluntary resign, or an Arena
  * host/scheduled sweep declaring a player missing-in-action (see
@@ -556,5 +633,24 @@ export function acknowledgeFortuneCard(state) {
   if (nextIndex < state.fortuneRecap.length) {
     return { ...state, fortuneRecapIndex: nextIndex };
   }
+  if (state.pendingGameOver) {
+    return { ...state, status: 'gameEnding', pendingGameOver: false, fortuneRecap: [], fortuneRecapIndex: 0 };
+  }
   return { ...state, status: 'playing', fortuneRecap: [], fortuneRecapIndex: 0 };
+}
+
+/**
+ * Ends the 'gameEnding' recap (game-ui/components/GameEndingRecap.jsx — the
+ * browsable "that's a wrap" dashboard: every fortune card each player drew,
+ * plus clickable per-player net worth / passive income / earnings
+ * timelines) and actually shows the Game Over screen. Client-submittable
+ * (resolve-move/index.ts's allowlist) — safe for every connected client to
+ * submit whenever THEY click "Continue to Leaderboard" (there's no timer to
+ * race), because this is a pure no-op once status is already 'gameover'
+ * (unlike ACK_FORTUNE_CARD, which is why THAT one still needs the
+ * elected-single-client convention in ArenaGameBoard.jsx).
+ */
+export function finalizeGameOver(state) {
+  if (state.status !== 'gameEnding') return state;
+  return { ...state, status: 'gameover' };
 }

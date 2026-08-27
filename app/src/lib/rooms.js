@@ -90,11 +90,25 @@ export async function fetchMoves(roomId) {
 /** seatPlan: array (length 2-5) of 'ai' | 'open' for seats 1..N-1 — seat 0
  * is always the host, seated immediately as human. An 'ai' seat is
  * immediately assigned a random personality (resolve-move's START_GAME
- * picks the actual bot identity if this is left as 'random'). */
-export async function createRoom({ hostId, gameId, seatPlan, turnTimeoutHours }) {
+ * picks the actual bot identity if this is left as 'random').
+ *
+ * turnTimeoutMinutes: how long an idle human blocks the game before
+ * sweep-missing-players warns, then converts their seat to AI at 2x this
+ * value — see vm_rooms.turn_timeout_minutes (default 15) and that column's
+ * migration comment. Omit to take the column default; pass null for
+ * "never time out". (This param used to be turnTimeoutHours, inserting
+ * into a turn_timeout_hours column — that column was renamed/replaced by
+ * the 0004_timeout_naming_and_avatars migration, and the old insert here
+ * was left pointing at the now-dropped column, which broke every room
+ * creation with a "column does not exist" error until this fix.) */
+export async function createRoom({ hostId, gameId, seatPlan, turnTimeoutMinutes }) {
   const { data: rooms, error: roomErr } = await supabase
     .from('vm_rooms')
-    .insert({ game_id: gameId, host_id: hostId, turn_timeout_hours: turnTimeoutHours || 48 })
+    .insert({
+      game_id: gameId,
+      host_id: hostId,
+      ...(turnTimeoutMinutes !== undefined ? { turn_timeout_minutes: turnTimeoutMinutes } : {}),
+    })
     .select()
     .single();
   if (roomErr) throw roomErr;

@@ -98,7 +98,7 @@ export default function Lobby({ session, onOpenRoom }) {
     <div className="arena-page">
       <div className="arena-page-header">
         <div>
-          <h1>VentureMaker Arena</h1>
+          <h1>Lobby</h1>
           <p className="subtitle">
             Signed in as {isGuest ? 'a guest' : session.user.email}
           </p>

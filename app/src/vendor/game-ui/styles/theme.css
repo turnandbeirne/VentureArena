@@ -1,0 +1,460 @@
+/* ============================================================================
+   VentureFlow — playful board-game theme
+   Chunky rounded borders, bright friendly colors, big tappable buttons.
+   Tuned to work well on tablets for classroom use.
+============================================================================ */
+
+:root {
+  --vf-cream: #fdf3e3;
+  --vf-cream-deep: #fbead2;
+  --vf-ink: #24262e;
+  --vf-ink-soft: #4a4a52;
+
+  --vf-teal: #1fa98e;
+  --vf-teal-dark: #148571;
+  --vf-orange: #f5a623;
+  --vf-orange-dark: #d98a0f;
+  --vf-yellow: #ffd76a;
+  --vf-green: #3ab26a;
+  --vf-green-dark: #2b8f52;
+  --vf-red: #ef6a53;
+  --vf-red-dark: #d94f38;
+  --vf-blue: #4fb0e8;
+  --vf-purple: #a679e0;
+  --vf-pink: #f47fb0;
+
+  --vf-white: #ffffff;
+  --vf-border: var(--vf-ink);
+  --vf-border-width: 3px;
+  --vf-border-width-lg: 4px;
+
+  --vf-radius-sm: 12px;
+  --vf-radius-md: 18px;
+  --vf-radius-lg: 26px;
+  --vf-radius-pill: 999px;
+
+  --vf-shadow: 0 4px 0 rgba(36, 38, 46, 0.9);
+  --vf-shadow-sm: 0 3px 0 rgba(36, 38, 46, 0.9);
+  --vf-shadow-lg: 0 6px 0 rgba(36, 38, 46, 0.9);
+
+  font-family: 'Fredoka', system-ui, sans-serif;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--vf-cream);
+  color: var(--vf-ink);
+  font-family: 'Fredoka', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 600;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Buttons                                                                 */
+/* ---------------------------------------------------------------------- */
+.vf-btn {
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.85rem 1.4rem;
+  min-height: 52px;
+  background: var(--vf-white);
+  color: var(--vf-ink);
+  cursor: pointer;
+  box-shadow: var(--vf-shadow);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.vf-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(36, 38, 46, 0.9);
+}
+
+.vf-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: var(--vf-shadow);
+}
+
+.vf-btn:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.vf-btn--primary {
+  background: var(--vf-teal);
+  color: var(--vf-white);
+}
+
+.vf-btn--warm {
+  background: var(--vf-orange);
+  color: var(--vf-white);
+}
+
+.vf-btn--go {
+  background: var(--vf-green);
+  color: var(--vf-white);
+}
+
+.vf-btn--danger {
+  background: var(--vf-red);
+  color: var(--vf-white);
+}
+
+.vf-btn--ghost {
+  background: var(--vf-white);
+}
+
+.vf-btn--sm {
+  padding: 0.55rem 1rem;
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+.vf-btn--lg {
+  padding: 1.1rem 2rem;
+  min-height: 64px;
+  font-size: 1.15rem;
+}
+
+.vf-btn--block {
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Cards / panels                                                         */
+/* ---------------------------------------------------------------------- */
+.vf-card {
+  background: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-lg);
+  box-shadow: var(--vf-shadow);
+}
+
+.vf-panel {
+  background: var(--vf-cream);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-lg);
+}
+
+.vf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.4rem 0.9rem;
+  font-weight: 600;
+  background: var(--vf-white);
+}
+
+/* ---------------------------------------------------------------------- */
+/* VentureMaker callout link (components/VentureMakerLink.jsx) — the       */
+/* "learn more / connect with entrepreneurs" line at the bottom of the     */
+/* setup screen and on game-over. Deliberately styled like a small pill    */
+/* button rather than a plain text link, so it reads as an unmistakable,   */
+/* clickable invitation rather than a footnote.                            */
+/* ---------------------------------------------------------------------- */
+.vf-venturemaker-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.65rem 1.2rem;
+  background: var(--vf-teal);
+  color: var(--vf-white);
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  box-shadow: var(--vf-shadow-sm);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.vf-venturemaker-link:hover,
+.vf-venturemaker-link:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: var(--vf-shadow);
+  background: var(--vf-teal-dark);
+}
+
+.vf-venturemaker-link:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Scrollbars (log panel etc.) — keep them chunky-friendly too             */
+/* ---------------------------------------------------------------------- */
+.vf-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.vf-scroll::-webkit-scrollbar-thumb {
+  background: var(--vf-ink);
+  border-radius: var(--vf-radius-pill);
+}
+.vf-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Volume control                                                          */
+/* ---------------------------------------------------------------------- */
+.vf-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.3rem 0.6rem 0.3rem 0.3rem;
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-volume__toggle {
+  box-shadow: none;
+  border: none;
+  padding: 0.35rem;
+  min-height: 34px;
+  min-width: 34px;
+  font-size: 1.1rem;
+  background: transparent;
+}
+
+.vf-volume__toggle:active {
+  transform: none;
+}
+
+.vf-volume__slider {
+  width: 70px;
+  accent-color: var(--vf-teal);
+  cursor: pointer;
+}
+
+.vf-volume__slider:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vf-topbar-corner {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 2rem);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Brand mark ("VentureFlow" + "A VentureMaker™ game")                    */
+/* ---------------------------------------------------------------------- */
+.vf-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+/* The brand mark is an <a> to VentureMaker (see Brand.jsx) — reset the
+   default link styling so it reads exactly like the plain wordmark it used
+   to be, with just a subtle hover/focus cue that it's clickable. */
+.vf-brand--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.vf-brand--link:hover,
+.vf-brand--link:focus-visible {
+  opacity: 0.8;
+}
+
+.vf-brand--center {
+  align-items: center;
+  text-align: center;
+}
+
+.vf-brand--left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.vf-brand__logo {
+  font-weight: 600;
+}
+
+.vf-brand__logo span {
+  color: var(--vf-teal);
+}
+
+.vf-brand__tag {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+/* "by Michael P Beirne" — a cursive/signature-style credit line under the
+   tagline (see gameConfig.js's BRAND_CREDIT). Dancing Script rather than
+   the game's usual Fredoka, specifically so it reads like an actual
+   signature rather than another line of UI copy. */
+.vf-brand__signature {
+  font-family: 'Dancing Script', cursive;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  opacity: 0.85;
+  line-height: 1;
+}
+
+.vf-brand--lg .vf-brand__logo {
+  font-size: 2.6rem;
+}
+.vf-brand--lg .vf-brand__tag {
+  font-size: 0.95rem;
+}
+.vf-brand--lg .vf-brand__signature {
+  font-size: 1.4rem;
+}
+
+.vf-brand--md .vf-brand__logo {
+  font-size: 1.6rem;
+}
+.vf-brand--md .vf-brand__tag {
+  font-size: 0.75rem;
+}
+.vf-brand--md .vf-brand__signature {
+  font-size: 1.05rem;
+}
+
+.vf-brand--sm .vf-brand__logo {
+  font-size: 1.4rem;
+}
+.vf-brand--sm .vf-brand__tag {
+  font-size: 0.65rem;
+}
+.vf-brand--sm .vf-brand__signature {
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Inline field errors (name validation, etc.)                             */
+/* ---------------------------------------------------------------------- */
+.vf-field-error {
+  display: block;
+  color: var(--vf-red-dark);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.3rem;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Board themes — cosmetic-only accent swaps, unlocked via game/profile.js */
+/* and applied as a data-theme attribute on the app root (see App.jsx).    */
+/* ---------------------------------------------------------------------- */
+[data-theme='gold'] {
+  --vf-yellow: #f4c542;
+  --vf-teal: #b8860b;
+  --vf-teal-dark: #8a6508;
+  --vf-cream: #fff8e7;
+  --vf-cream-deep: #fbe9b8;
+}
+
+/* Ported from VentureFlow's src/styles/theme.css (Round 6's Unlocks
+   expansion) — see vf-source-snapshot-2026-08-23.md. Not yet reachable from
+   any Arena UI (Arena has no profile.js/theme-picker of its own — identity
+   here is a real account, not a browser — see that doc's "What this means
+   for the Arena port" section), but harmless to carry over now so a future
+   Arena theme-picker has the palette ready to use. */
+[data-theme='grove'] {
+  --vf-teal: #2f9e44;
+  --vf-teal-dark: #237032;
+  --vf-orange: #d9a441;
+  --vf-orange-dark: #b3812c;
+  --vf-cream: #f3f7ea;
+  --vf-cream-deep: #e4edd3;
+}
+
+[data-theme='ocean'] {
+  --vf-teal: #1c7ed6;
+  --vf-teal-dark: #155ea3;
+  --vf-yellow: #ffd43b;
+  --vf-cream: #eaf6fb;
+  --vf-cream-deep: #d3edf7;
+}
+
+[data-theme='berry'] {
+  --vf-teal: #d6336c;
+  --vf-teal-dark: #a61e4d;
+  --vf-orange: #ae3ec9;
+  --vf-orange-dark: #862e9c;
+  --vf-cream: #fdf0f6;
+  --vf-cream-deep: #fbdce9;
+}
+
+[data-theme='arcade'] {
+  --vf-teal: #5f3dc4;
+  --vf-teal-dark: #4527a0;
+  --vf-orange: #f08c00;
+  --vf-cream: #f1edfb;
+  --vf-cream-deep: #e0d6f7;
+}
+
+@keyframes vf-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes vf-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

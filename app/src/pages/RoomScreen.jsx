@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient.js';
 import { fetchMoves, fetchProfilesByIds, fetchRoom, fetchRoomByInviteCode, fetchSeats } from '../lib/rooms.js';
 import { replayRoom } from '../lib/replay.js';
 import SeatingPanel from './room/SeatingPanel.jsx';
-import GameBoard from './room/GameBoard.jsx';
+import ArenaGameBoard from './room/ArenaGameBoard.jsx';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -83,23 +83,33 @@ export default function RoomScreen({ session, roomParam, onLeave }) {
   const mySeat = seats.find((s) => s.user_id === session.user.id);
   const mySeatIndex = mySeat ? mySeat.seat_index : null;
 
+  // Once the real board is up, it renders its own Brand/header (and its own
+  // "← Lobby" control) — VentureFlow's board is a full screen in its own
+  // right, not a panel inside another page's chrome. Keeping this page's
+  // own header on top of that would just be two headers stacked, so it's
+  // shown only for the states that have no header of their own: still
+  // loading, not found, an error, or the pre-game seating panel.
+  const showPageHeader = !(room && room.status !== 'open' && gameState);
+
   return (
     <div className="arena-page">
-      <div className="arena-page-header">
-        <div>
-          <h1>Room {room ? room.invite_code : ''}</h1>
-          {room && (
-            <p className="subtitle">
-              <button className="arena-link-button" onClick={copyInvite}>
-                {copied ? 'Copied!' : 'Copy invite link'}
-              </button>
-            </p>
-          )}
+      {showPageHeader && (
+        <div className="arena-page-header">
+          <div>
+            <h1>Room {room ? room.invite_code : ''}</h1>
+            {room && (
+              <p className="subtitle">
+                <button className="arena-link-button" onClick={copyInvite}>
+                  {copied ? 'Copied!' : 'Copy invite link'}
+                </button>
+              </p>
+            )}
+          </div>
+          <button className="arena-button secondary arena-button-inline" onClick={onLeave}>
+            ← Lobby
+          </button>
         </div>
-        <button className="arena-button secondary arena-button-inline" onClick={onLeave}>
-          ← Lobby
-        </button>
-      </div>
+      )}
 
       {error && <div className="arena-error">{error}</div>}
       {room === undefined && <p className="arena-muted">Loading…</p>}
@@ -110,7 +120,7 @@ export default function RoomScreen({ session, roomParam, onLeave }) {
       )}
 
       {room && room.status !== 'open' && gameState && (
-        <GameBoard room={room} gameState={gameState} mySeatIndex={mySeatIndex} session={session} onChanged={load} />
+        <ArenaGameBoard room={room} gameState={gameState} mySeatIndex={mySeatIndex} session={session} onChanged={load} onLeave={onLeave} />
       )}
 
       {room && room.status !== 'open' && !gameState && <p className="arena-muted">Loading game state…</p>}

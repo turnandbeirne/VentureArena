@@ -18,7 +18,14 @@
 // ============================================================================
 import { BOT_CHAT_LINES, getBotPersonality } from '../data/gameConfig';
 import { getStageInfo } from './weather';
-import { pickRandom } from './rng';
+import { turnOrdinal } from './turnClock';
+// `chance` is imported under an alias because two reaction branches below
+// already use a local `chance` variable for their own per-entry probability.
+// Every gate here goes through the seeded stream rather than Math.random():
+// chat entries are stored IN game state, so a raw Math.random() would make
+// two clients replaying the same actions end up with different state — and
+// it already made Daily Challenge chat non-reproducible.
+import { pickRandom, chance as rollChance } from './rng';
 
 // How often each kind of log entry gets a chat reaction at all. Missing
 // kinds (payday, and anything future) simply never trigger chat.
@@ -97,14 +104,46 @@ function pickSpeaker(state, excludeId) {
   return pool.length > 0 ? pickRandom(pool) : null;
 }
 
-function line(personalityId, category, vars) {
+// How many turns a given canned line is off the table for after it's used.
+// Without this, a personality with eight 'compliment' lines repeats itself
+// noticeably within a single game — the same joke landing twice in three
+// turns is what makes a bot read as a script rather than a character.
+const CHAT_REPEAT_COOLDOWN_TURNS = 6;
+
+/** Lines this table has heard within the cooldown window, as a Set for
+ * O(1) lookup. Read straight off `state.chat` (already capped at 60
+ * entries) rather than tracked separately — the transcript IS the memory. */
+function recentlySaid(state) {
+  const now = turnOrdinal(state);
+  const recent = new Set();
+  for (const entry of state.chat || []) {
+    if (entry.turnNo == null) continue;
+    if (now - entry.turnNo < CHAT_REPEAT_COOLDOWN_TURNS) recent.add(entry.message);
+  }
+  return recent;
+}
+
+/**
+ * Pick a line for `category`, preferring one that hasn't been said in the
+ * last CHAT_REPEAT_COOLDOWN_TURNS turns. Falls back to the full bank if
+ * every line is on cooldown (a small category, or a very chatty stretch) —
+ * repeating is better than a bot falling silent for no visible reason.
+ */
+function line(state, personalityId, category, vars) {
   const bank = BOT_CHAT_LINES[personalityId]?.[category];
   if (!bank || bank.length === 0) return null;
-  let text = pickRandom(bank);
-  for (const [key, val] of Object.entries(vars || {})) {
-    text = text.replaceAll(`{${key}}`, val);
-  }
-  return text;
+  const recent = recentlySaid(state);
+  // Compare against the SUBSTITUTED text, since two different players'
+  // names in the same template are genuinely different lines to a reader.
+  const substitute = (template) => {
+    let text = template;
+    for (const [key, val] of Object.entries(vars || {})) {
+      text = text.replaceAll(`{${key}}`, val);
+    }
+    return text;
+  };
+  const fresh = bank.filter((template) => !recent.has(substitute(template)));
+  return substitute(pickRandom(fresh.length > 0 ? fresh : bank));
 }
 
 /** Build one chat entry from `speaker`, or null if that personality has no
@@ -113,8 +152,8 @@ function line(personalityId, category, vars) {
  * BOT_PERSONALITIES) so the UI can color-code each bot's bubbles — falls
  * back to null for a personality that somehow has no color set, which the
  * UI treats as "use the default neutral tint." */
-function say(speaker, category, vars, targetPlayerId) {
-  const text = line(speaker.personalityId, category, vars);
+function say(state, speaker, category, vars, targetPlayerId) {
+  const text = line(state, speaker.personalityId, category, vars);
   if (!text) return null;
   return {
     speakerId: speaker.id,
@@ -123,16 +162,19 @@ function say(speaker, category, vars, targetPlayerId) {
     color: getBotPersonality(speaker.personalityId)?.color || null,
     message: text,
     category,
+    // Stamped so the cooldown above can tell how long ago this was said.
+    // (reducer.js's appendChat adds `id` and `month` on top.)
+    turnNo: turnOrdinal(state),
     targetPlayerId: targetPlayerId || null,
   };
 }
 
 /** Maybe have a second bot banter back at whoever just spoke. */
 function maybeBanterFollowup(state, entries, spoken) {
-  if (!spoken || Math.random() >= BANTER_FOLLOWUP_CHANCE) return;
+  if (!spoken || !rollChance(BANTER_FOLLOWUP_CHANCE)) return;
   const responder = pickSpeaker(state, spoken.speakerId);
   if (!responder) return;
-  const reply = say(responder, 'botBanter', { bot: spoken.speakerName }, spoken.speakerId);
+  const reply = say(state, responder, 'botBanter', { bot: spoken.speakerName }, spoken.speakerId);
   if (reply) entries.push(reply);
 }
 
@@ -143,11 +185,11 @@ function reactionsForEntry(state, entry) {
   const actorName = actor?.name || 'you';
 
   if (kind === 'business') {
-    if (Math.random() >= REACT_CHANCE.business) return entries;
+    if (!rollChance(REACT_CHANCE.business)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const category = Math.random() < 0.2 ? 'challenge' : 'compliment';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const category = rollChance(0.2) ? 'challenge' : 'compliment';
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) {
       entries.push(said);
       maybeBanterFollowup(state, entries, said);
@@ -156,39 +198,39 @@ function reactionsForEntry(state, entry) {
   }
 
   if (kind === 'badge') {
-    if (Math.random() >= REACT_CHANCE.badge) return entries;
+    if (!rollChance(REACT_CHANCE.badge)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const said = say(speaker, 'compliment', { player: actorName }, entry.playerId);
+    const said = say(state, speaker, 'compliment', { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'businessUpgrade') {
-    if (Math.random() >= REACT_CHANCE.businessUpgrade) return entries;
+    if (!rollChance(REACT_CHANCE.businessUpgrade)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const category = Math.random() < 0.2 ? 'challenge' : 'compliment';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const category = rollChance(0.2) ? 'challenge' : 'compliment';
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'businessRnd') {
-    if (Math.random() >= REACT_CHANCE.businessRnd) return entries;
+    if (!rollChance(REACT_CHANCE.businessRnd)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const said = say(speaker, 'compliment', { player: actorName }, entry.playerId);
+    const said = say(state, speaker, 'compliment', { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'businessExit') {
-    if (Math.random() >= REACT_CHANCE.businessExit) return entries;
+    if (!rollChance(REACT_CHANCE.businessExit)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const category = Math.random() < 0.25 ? 'challenge' : 'compliment';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const category = rollChance(0.25) ? 'challenge' : 'compliment';
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) {
       entries.push(said);
       maybeBanterFollowup(state, entries, said);
@@ -197,11 +239,11 @@ function reactionsForEntry(state, entry) {
   }
 
   if (kind === 'skill') {
-    if (Math.random() >= REACT_CHANCE.skill) return entries;
+    if (!rollChance(REACT_CHANCE.skill)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const category = Math.random() < 0.5 ? 'compliment' : 'tease';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const category = rollChance(0.5) ? 'compliment' : 'tease';
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
@@ -209,23 +251,23 @@ function reactionsForEntry(state, entry) {
   if (kind.startsWith('buy_') || kind.startsWith('sell_')) {
     const isBuy = kind.startsWith('buy_');
     const chance = isBuy ? REACT_CHANCE.buy : REACT_CHANCE.sell;
-    if (Math.random() >= chance) return entries;
+    if (!rollChance(chance)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
     const assetId = kind.slice(kind.indexOf('_') + 1);
     const category = isBuy && assetId === 'treasure' ? 'challenge' : 'tease';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'weather') {
-    if (Math.random() >= REACT_CHANCE.weather) return entries;
+    if (!rollChance(REACT_CHANCE.weather)) return entries;
     const speaker = pickSpeaker(state, null);
     if (!speaker) return entries;
     const mood = getStageInfo(state.weather)?.mood;
     const category = mood === 'dip' || mood === 'bust' ? 'weatherBad' : 'weatherGood';
-    const said = say(speaker, category, {});
+    const said = say(state, speaker, category, {});
     if (said) {
       entries.push(said);
       maybeBanterFollowup(state, entries, said);
@@ -235,56 +277,56 @@ function reactionsForEntry(state, entry) {
 
   if (kind === 'fortuneGood' || kind === 'fortuneBad') {
     const chance = kind === 'fortuneGood' ? REACT_CHANCE.fortuneGood : REACT_CHANCE.fortuneBad;
-    if (Math.random() >= chance) return entries;
+    if (!rollChance(chance)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
     const category = kind === 'fortuneGood' ? 'compliment' : 'sympathy';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'objectiveMet') {
-    if (Math.random() >= REACT_CHANCE.objectiveMet) return entries;
+    if (!rollChance(REACT_CHANCE.objectiveMet)) return entries;
     const speaker = pickSpeaker(state, entry.playerId);
     if (!speaker) return entries;
-    const category = Math.random() < 0.3 ? 'challenge' : 'compliment';
-    const said = say(speaker, category, { player: actorName }, entry.playerId);
+    const category = rollChance(0.3) ? 'challenge' : 'compliment';
+    const said = say(state, speaker, category, { player: actorName }, entry.playerId);
     if (said) entries.push(said);
     return entries;
   }
 
   if (kind === 'leadChange') {
-    if (Math.random() >= REACT_CHANCE.leadChange) return entries;
+    if (!rollChance(REACT_CHANCE.leadChange)) return entries;
     const newLeader = entry.playerId ? state.players.find((p) => p.id === entry.playerId) : null;
     if (!newLeader) return entries;
     const speaker = pickSpeaker(state, newLeader.id);
     if (!speaker) return entries;
     if (newLeader.type === 'human') {
       const category = pickRandom(['challenge', 'tease']);
-      const said = say(speaker, category, { player: newLeader.name }, newLeader.id);
+      const said = say(state, speaker, category, { player: newLeader.name }, newLeader.id);
       if (said) entries.push(said);
     } else {
       // A robot took the lead — another bot gets a quick word about it.
-      const said = say(speaker, 'botBanter', { bot: newLeader.name }, newLeader.id);
+      const said = say(state, speaker, 'botBanter', { bot: newLeader.name }, newLeader.id);
       if (said) entries.push(said);
     }
     return entries;
   }
 
   if (kind === 'endTurn') {
-    if (Math.random() >= REACT_CHANCE.endTurn) return entries;
+    if (!rollChance(REACT_CHANCE.endTurn)) return entries;
     const newActive = entry.playerId ? state.players.find((p) => p.id === entry.playerId) : null;
     if (!newActive) return entries;
     const speaker = pickSpeaker(state, newActive.id);
     if (!speaker) return entries;
     if (newActive.type === 'human') {
       const category = pickRandom(['question', 'tease', 'challenge']);
-      const said = say(speaker, category, { player: newActive.name }, newActive.id);
+      const said = say(state, speaker, category, { player: newActive.name }, newActive.id);
       if (said) entries.push(said);
     } else {
       // A second robot's turn starting — a quick word from another bot.
-      const said = say(speaker, 'botBanter', { bot: newActive.name }, newActive.id);
+      const said = say(state, speaker, 'botBanter', { bot: newActive.name }, newActive.id);
       if (said) entries.push(said);
     }
     return entries;
@@ -294,11 +336,11 @@ function reactionsForEntry(state, entry) {
     if (!state.winnerId) return entries;
     const winner = state.players.find((p) => p.id === state.winnerId);
     for (const bot of aiSpeakers(state)) {
-      if (Math.random() >= REACT_CHANCE.gameover) continue;
+      if (!rollChance(REACT_CHANCE.gameover)) continue;
       const said =
         bot.id === state.winnerId
-          ? say(bot, 'gloat', {})
-          : say(bot, 'applause', { player: winner?.name || 'the winner' }, state.winnerId);
+          ? say(state, bot, 'gloat', {})
+          : say(state, bot, 'applause', { player: winner?.name || 'the winner' }, state.winnerId);
       if (said) entries.push(said);
     }
     return entries;
@@ -331,7 +373,7 @@ export function generateGreeting(state) {
   if (speakers.length === 0) return [];
   const entries = [];
   for (const bot of speakers) {
-    const said = say(bot, 'greeting', {});
+    const said = say(state, bot, 'greeting', {});
     if (said) entries.push(said);
   }
   if (entries.length > 0) maybeBanterFollowup(state, entries, entries[entries.length - 1]);
@@ -355,9 +397,14 @@ export function generateBotTurnFlavor(state, playerId) {
   const personality = getBotPersonality(bot.personalityId);
   const entries = [];
 
-  if (Math.random() < SFX_CHANCE) {
+  if (rollChance(SFX_CHANCE)) {
     const pool = personality.sfxPool?.length > 0 ? personality.sfxPool : DEFAULT_SFX_POOL;
-    const sfx = pickRandom(pool);
+    // Sound effects get the same anti-repeat cooldown as spoken lines — a
+    // burp is funny the first time and grating the third, and a
+    // personality's pool is small enough that the raw pick repeats often.
+    const recent = recentlySaid(state);
+    const fresh = pool.filter((id) => !recent.has(SFX_CAPTION[id] || '*makes a noise*'));
+    const sfx = pickRandom(fresh.length > 0 ? fresh : pool);
     entries.push({
       speakerId: bot.id,
       speakerName: bot.name,
@@ -366,12 +413,13 @@ export function generateBotTurnFlavor(state, playerId) {
       message: SFX_CAPTION[sfx] || '*makes a noise*',
       category: 'sfx',
       sound: sfx,
+      turnNo: turnOrdinal(state),
       targetPlayerId: null,
     });
   }
 
-  if (Math.random() < HYPE_CHANCE) {
-    const said = say(bot, 'hype', {});
+  if (rollChance(HYPE_CHANCE)) {
+    const said = say(state, bot, 'hype', {});
     if (said) entries.push(said);
   }
 
@@ -405,11 +453,11 @@ export function createHumanChatEntry(sender, message, targetPlayerId) {
  * otherwise, so a typed message doesn't just vanish into silence.
  */
 export function reactToHumanChat(state, humanEntry) {
-  if (!humanEntry || Math.random() >= HUMAN_REPLY_CHANCE) return [];
+  if (!humanEntry || !rollChance(HUMAN_REPLY_CHANCE)) return [];
   const target = humanEntry.targetPlayerId ? state.players.find((p) => p.id === humanEntry.targetPlayerId) : null;
   const speaker = target?.type === 'ai' && target.personalityId ? target : pickSpeaker(state, humanEntry.speakerId);
   if (!speaker) return [];
   const category = pickRandom(['question', 'tease', 'compliment', 'challenge']);
-  const said = say(speaker, category, { player: humanEntry.speakerName }, humanEntry.speakerId);
+  const said = say(state, speaker, category, { player: humanEntry.speakerName }, humanEntry.speakerId);
   return said ? [said] : [];
 }

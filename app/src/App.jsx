@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
+import Brand from './components/Brand.jsx';
 import AuthScreen from './pages/AuthScreen.jsx';
 import Lobby from './pages/Lobby.jsx';
 import RoomScreen from './pages/RoomScreen.jsx';
@@ -44,7 +45,16 @@ export default function App() {
   }
 
   if (session === undefined) return null; // brief flash guard while the session loads
-  if (!session) return <AuthScreen />;
-  if (roomParam) return <RoomScreen session={session} roomParam={roomParam} onLeave={backToLobby} />;
-  return <Lobby session={session} onOpenRoom={openRoom} />;
+  return (
+    <>
+      <Brand />
+      {!session ? (
+        <AuthScreen />
+      ) : roomParam ? (
+        <RoomScreen session={session} roomParam={roomParam} onLeave={backToLobby} />
+      ) : (
+        <Lobby session={session} onOpenRoom={openRoom} />
+      )}
+    </>
+  );
 }

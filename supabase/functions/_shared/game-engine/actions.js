@@ -15,7 +15,9 @@ import {
   SKILL_COST,
   BUSINESS_NAMES,
   BUSINESS_UPGRADE_TRACKS,
+  SAME_TURN_SELL_PENALTY,
 } from '../data/gameConfig';
+import { turnOrdinal, currentTurnTally } from './turnClock';
 import { randomInt, pickRandom } from './rng';
 import { upgradeCost, canUpgradeTrack, applyUpgrade, upgradeBlockReason } from './businessUpgrades';
 
@@ -49,6 +51,9 @@ export function buyAsset(state, playerId, assetId, qty = 1) {
   const cost = Math.round(price * qty);
   if (player.cash < cost) return { state, ok: false, error: `Not enough cash for ${asset.name}.` };
 
+  const turnNo = turnOrdinal(state);
+  const tally = currentTurnTally(player.turnBuys, turnNo);
+
   const nextState = updatePlayer(state, playerId, (p) => ({
     ...p,
     cash: p.cash - cost,
@@ -64,12 +69,30 @@ export function buyAsset(state, playerId, assetId, qty = 1) {
       ...(p.ledger || []),
       { month: state.month, type: 'out', amount: cost, source: `Bought ${asset.name}`, detail: qty > 1 ? `${qty} units` : undefined },
     ],
+    // Remember what was bought THIS turn, so selling it straight back takes
+    // the same-turn penalty (see sellAsset). Stamped with the turn it
+    // belongs to rather than reset at each hand-off — see turnClock.js.
+    turnBuys: {
+      turnNo,
+      counts: { ...tally, [assetId]: (tally[assetId] || 0) + qty },
+    },
   }));
 
   return {
     state: nextState,
     ok: true,
-    logEntry: { icon: asset.icon, message: `bought ${asset.name}`, kind: `buy_${assetId}`, playerId },
+    // `qty`/`assetName`/`verb` let reducer.js's appendLog fold repeated
+    // trades of the same thing into ONE growing line ("bought 14 Piggy
+    // Banks") instead of 14 identical ones — see tradeMessage there.
+    logEntry: {
+      icon: asset.icon,
+      message: `bought ${qty === 1 ? asset.name : `${qty} ${asset.plural || asset.name}`}`,
+      kind: `buy_${assetId}`,
+      playerId,
+      qty,
+      verb: 'bought',
+      assetId,
+    },
   };
 }
 
@@ -82,33 +105,77 @@ export function sellAsset(state, playerId, assetId, qty = 1) {
   if (owned < qty) return { state, ok: false, error: `You don't own that many ${asset.name}.` };
 
   const price = state.assetPrices[assetId];
-  const proceeds = Math.round(price * qty);
+  // Units bought this very turn sell back at a discount; anything held from
+  // an earlier month sells at the full price, in the same transaction. See
+  // gameConfig.js's SAME_TURN_SELL_PENALTY for why.
+  const turnNo = turnOrdinal(state);
+  const tally = currentTurnTally(player.turnBuys, turnNo);
+  const boughtThisTurn = Math.min(qty, tally[assetId] || 0);
+  const heldLonger = qty - boughtThisTurn;
+  const penalty = Math.round(price * boughtThisTurn * SAME_TURN_SELL_PENALTY);
+  const proceeds = Math.round(price * (heldLonger + boughtThisTurn)) - penalty;
 
   const nextState = updatePlayer(state, playerId, (p) => ({
     ...p,
     cash: p.cash + proceeds,
     holdings: { ...p.holdings, [assetId]: owned - qty },
+    // Those units are gone, so they can't be penalised twice.
+    turnBuys: {
+      turnNo,
+      counts: { ...tally, [assetId]: (tally[assetId] || 0) - boughtThisTurn },
+    },
     ledger: [
       ...(p.ledger || []),
-      { month: state.month, type: 'in', amount: proceeds, source: `Sold ${asset.name}`, detail: qty > 1 ? `${qty} units` : undefined },
+      {
+        month: state.month,
+        type: 'in',
+        amount: proceeds,
+        source: `Sold ${asset.name}`,
+        detail: penalty > 0
+          ? `${qty} unit${qty === 1 ? '' : 's'} · -$${penalty} same-turn resale fee`
+          : qty > 1
+          ? `${qty} units`
+          : undefined,
+      },
     ],
   }));
 
   return {
     state: nextState,
     ok: true,
-    logEntry: { icon: asset.icon, message: `sold ${asset.name}`, kind: `sell_${assetId}`, playerId },
+    logEntry: {
+      icon: asset.icon,
+      message: `sold ${qty === 1 ? asset.name : `${qty} ${asset.plural || asset.name}`}${
+        penalty > 0 ? ` (-$${penalty} resale fee)` : ''
+      }`,
+      kind: `sell_${assetId}`,
+      playerId,
+      // A penalised sale is NOT merged into a plain one in the event log —
+      // the fee is the interesting part and folding it away would hide it.
+      qty: penalty > 0 ? undefined : qty,
+      verb: 'sold',
+      assetId,
+    },
   };
 }
 
-export function startBusiness(state, playerId) {
+export function startBusiness(state, playerId, chosenName) {
   const player = findPlayer(state, playerId);
   if (!player) return { state, ok: false, error: 'Invalid player.' };
   if (player.cash < BUSINESS_COST) return { state, ok: false, error: 'Not enough cash to start a business.' };
   if (player.skillTokens < BUSINESS_SKILL_COST) return { state, ok: false, error: 'Not enough skill tokens.' };
 
   const income = randomInt(BUSINESS_INCOME_MIN, BUSINESS_INCOME_MAX);
-  const name = pickBusinessName(player.businesses);
+  // A human gets to pick from StartBusinessModal.jsx (their own typed name,
+  // or one of the whimsical suggestions it offers) — trimmed and capped so
+  // a pasted essay can't blow out every card that renders this name. An AI
+  // (or a human who somehow submits blank) falls back to the same random
+  // whimsical pick as always. Either way, businessArt.js turns whatever
+  // name lands here into the storefront art — a human choosing "Ice Cream
+  // Truck" over "Auntie Betty's Bakery" IS choosing the business's type,
+  // there's no separate archetype system to keep in sync with it.
+  const trimmedChosen = typeof chosenName === 'string' ? chosenName.trim().slice(0, 40) : '';
+  const name = trimmedChosen || pickBusinessName(player.businesses);
   // player.businessSeq (not businesses.length + 1 — see its comment in
   // players.js) so an id never gets reused after a business exit removes
   // one from the array; a game saved before businessSeq existed falls back

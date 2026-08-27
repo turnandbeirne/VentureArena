@@ -5,6 +5,23 @@
 # this whenever VentureFlow's game logic changes, then `npm run build:engine`
 # before redeploying.
 #
+# ⚠️ THIS OVERWRITES 4 ARENA-ONLY PATCHES that don't exist in upstream
+# VentureFlow (online-mode player-roster building + seat-to-AI conversion —
+# search this repo for "ARENA-ONLY" to find every one):
+#   - data/gameConfig.js:        ONLINE_ROOM_MIN_PLAYERS / MAX_PLAYERS
+#   - game-engine/players.js:    `export` on resolveBotConfig, and the whole
+#                                 `mode.type === 'online'` branch in
+#                                 createPlayerRoster
+#   - game-engine/turnEngine.js: the resolveBotConfig import, and the whole
+#                                 convertSeatToAi() function
+#   - game-engine/reducer.js:    the convertSeatToAi import and the
+#                                 'CONVERT_SEAT_TO_AI' case
+# After running this script, `git diff` will show all of the above vanish —
+# re-apply them by hand (or `git checkout -p` the relevant hunks back in)
+# before running `npm run build:engine` / redeploying. There's no automated
+# re-apply script; the ARENA-ONLY comments are there so a manual diff makes
+# it obvious what to restore.
+#
 # Usage: ./scripts/sync-game-engine.sh /path/to/ventureflow
 set -euo pipefail
 
@@ -20,7 +37,7 @@ FILES=(
   actions.js aiEngine.js badges.js businessExits.js businessUpgrades.js
   chatEngine.js dailyChallenge.js decks.js market.js nameFilter.js
   newGame.js players.js reducer.js rng.js scenarios.js turnEngine.js
-  lessons.js weather.js
+  lessons.js weather.js turnClock.js
 )
 
 for f in "${FILES[@]}"; do

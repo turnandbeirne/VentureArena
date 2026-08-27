@@ -64,7 +64,7 @@ const CHECKERS = {
  * holdings and current prices to compute dynamic rent (see players.js).
  */
 export function evaluateBadges(player, month, context = {}) {
-  const earnedSet = new Set(player.badges);
+  const earnedSet = new Set(player.badges || []);
   const newlyEarned = [];
   const fullContext = { ...context, month };
 
@@ -85,7 +85,7 @@ export function evaluateBadges(player, month, context = {}) {
       ...player,
       badges: Array.from(earnedSet),
       badgeEvents: [
-        ...player.badgeEvents,
+        ...(player.badgeEvents || []),
         ...newlyEarned.map((b) => ({ badgeId: b.id, month })),
       ],
     },
@@ -103,7 +103,7 @@ export function getBadgeInfo(badgeId) {
  * a plain, serializable event list ready to sync/export elsewhere.
  */
 export function exportBadgeEvents(player) {
-  return player.badgeEvents.map((event) => ({
+  return (player.badgeEvents || []).map((event) => ({
     playerId: player.id,
     playerName: player.name,
     badgeId: event.badgeId,

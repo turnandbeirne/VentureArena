@@ -5,7 +5,7 @@
 // marketDrift, plus its own random volatility noise. Data-driven entirely
 // off src/data/gameConfig.js — add a new asset there and it prices itself.
 // ============================================================================
-import { ASSETS, MIN_ASSET_PRICE } from '../data/gameConfig';
+import { ASSETS, MIN_ASSET_PRICE, severityScaled } from '../data/gameConfig';
 // Environment stream — see game/rng.js's module comment and weather.js for
 // why price drift can't share a stream with anything player-choice-driven.
 import { envNoise as noise } from './rng';
@@ -21,15 +21,26 @@ export function createInitialPrices() {
  * Advance every asset price by one month using the current weather.
  * Returns a new prices object plus a per-asset % change map (handy for
  * showing "up"/"down" arrows in the UI).
+ *
+ * `weatherSeverityId` (see gameConfig.js's WEATHER_SEVERITIES) scales BOTH
+ * halves of the move: the weather's directional drift and the asset's own
+ * random swing. Scaling only the drift would make a "severe" economy
+ * relentlessly one-directional rather than genuinely volatile.
+ *
+ * The noise draw happens unconditionally, once per asset, in fixed order,
+ * regardless of severity — the environment stream's draw count must never
+ * depend on a setting or a choice (see game/rng.js).
  */
-export function driftPrices(prices, weatherState) {
+export function driftPrices(prices, weatherState, weatherSeverityId) {
   const stage = getStageInfo(weatherState);
   const nextPrices = { ...prices };
   const changePercent = {};
 
   for (const asset of ASSETS) {
     const current = prices[asset.id];
-    const monthlyChange = stage.marketDrift + noise(asset.volatility);
+    const drift = severityScaled(stage.marketDrift, weatherSeverityId);
+    const swing = severityScaled(noise(asset.volatility), weatherSeverityId);
+    const monthlyChange = drift + swing;
     const next = Math.max(MIN_ASSET_PRICE, current * (1 + monthlyChange));
     nextPrices[asset.id] = Math.round(next * 100) / 100;
     changePercent[asset.id] = monthlyChange;

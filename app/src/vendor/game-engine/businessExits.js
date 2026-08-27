@@ -30,7 +30,7 @@
 // ============================================================================
 import { BUSINESS_EXIT_CHANCE_PER_MONTH, BUSINESS_EXIT_MULTIPLIER_WEIGHTS } from '../data/gameConfig';
 import { envChance, envWeightedPick, envRandomInt } from './rng';
-import { businessMonthlyIncome } from './players';
+
 
 /**
  * Roll whether a business-exit offer fires this month and, if so, on which
@@ -44,7 +44,7 @@ import { businessMonthlyIncome } from './players';
  * `annualIncome` (`income * 12`) is what `multiplier` is actually applied
  * against.
  */
-export function rollBusinessExit(players, month) {
+export function rollBusinessExit(players) {
   if (!envChance(BUSINESS_EXIT_CHANCE_PER_MONTH)) return null;
   const multiplier = Number(envWeightedPick(BUSINESS_EXIT_MULTIPLIER_WEIGHTS));
   const targetIndex = envRandomInt(0, players.length - 1);
@@ -55,10 +55,19 @@ export function rollBusinessExit(players, month) {
   // card resolves automatically with no player choice involved, so this
   // stays consistent with that (and is the generous, unambiguous pick when
   // someone owns more than one).
-  const business = [...target.businesses].sort(
-    (a, b) => businessMonthlyIncome(b, month) - businessMonthlyIncome(a, month)
-  )[0];
-  const income = businessMonthlyIncome(business, month);
+  //
+  // Valued on PERMANENT income (`business.income`) rather than this month's
+  // effective income. Including live Marketing boosts made a buyout the
+  // dominant use of a campaign: three concurrent boosts at 8-30% each could
+  // value a business ~90% above its real revenue, and since the payout is
+  // `12 x multiplier x income`, that inflation arrived multiplied — up to
+  // ~$1,400 of extra payout on a $100/mo business at 4x, for $450 of
+  // campaigns. Capping campaigns (see businessUpgrades.js) limited how far
+  // that could be pushed; pricing the offer off permanent revenue removes
+  // the incentive entirely, which is what a buyer would actually do anyway:
+  // nobody values a company on the month it happened to be running an ad.
+  const business = [...target.businesses].sort((a, b) => b.income - a.income)[0];
+  const income = business.income;
   const annualIncome = income * 12;
   const payout = Math.round(annualIncome * multiplier);
 

@@ -53,7 +53,6 @@ export default function AuthScreen() {
 
   return (
     <div className="arena-shell">
-      <h1>VentureMaker Arena</h1>
       <p className="subtitle">Play VentureMaker games with friends — or jump in as a guest.</p>
 
       {error && <div className="arena-error">{error}</div>}

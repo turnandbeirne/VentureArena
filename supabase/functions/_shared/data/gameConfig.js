@@ -195,14 +195,6 @@ export const FINANCIAL_LESSONS = {
 // ---------------------------------------------------------------------------
 export const GAME_LENGTH_MONTHS = 24;
 
-// A room in 'online' mode (see players.js's createPlayerRoster) mixes any
-// number of human + AI seats within this range. 2 is the minimum for it to
-// be "multiplayer" at all; 5 is a balance/UX ceiling (BOT_PERSONALITIES below
-// currently defines 7 named personalities, comfortably more than the 4 AI
-// seats a 1-human/4-AI room would need) — raise it if that ever changes.
-export const ONLINE_ROOM_MIN_PLAYERS = 2;
-export const ONLINE_ROOM_MAX_PLAYERS = 5;
-
 // These reflect the "Middle of the Pack" difficulty and exist as a fallback
 // default — e.g. for a game saved before difficulty presets existed. Every
 // actual new game reads its numbers from the chosen DIFFICULTIES entry
@@ -218,6 +210,47 @@ export const BUSINESS_COST = 300;
 export const BUSINESS_SKILL_COST = 1;
 export const BUSINESS_INCOME_MIN = 30;
 export const BUSINESS_INCOME_MAX = 70;
+
+// ---------------------------------------------------------------------------
+// ⚠️ ARENA-ONLY ADDITION — not part of upstream VentureFlow. See
+// scripts/sync-game-engine.sh's header: re-syncing this file from a fresh
+// VentureFlow checkout wipes this constant pair, and
+// scripts/apply-arena-engine-patches.sh puts it back. Used by the
+// VentureMaker Arena's resolve-move edge function (via gameRoom.ts) to
+// bound how many seats an online room can have.
+// ---------------------------------------------------------------------------
+export const ONLINE_ROOM_MIN_PLAYERS = 2;
+export const ONLINE_ROOM_MAX_PLAYERS = 5;
+
+// ---------------------------------------------------------------------------
+// Table size
+// ---------------------------------------------------------------------------
+// Both modes seat up to MAX_PLAYERS. Solo is you plus up to MAX_PLAYERS - 1
+// robots (7 named personalities exist, so three distinct opponents is never
+// a problem); Hot-Seat is up to MAX_PLAYERS humans passing one device.
+// PLAYER_AVATARS has 24 entries, comfortably more than a full table needs.
+export const MAX_PLAYERS = 4;
+export const MAX_AI_PLAYERS = MAX_PLAYERS - 1;
+
+// ---------------------------------------------------------------------------
+// Turn timer (optional, off by default)
+// ---------------------------------------------------------------------------
+// A human turn can be put on a clock — chosen at setup, per game, and stored
+// in game state (unlike play SPEED, which is a device preference): everyone
+// at the table has to be playing by the same rule, and it has to survive a
+// reload mid-game.
+//
+// When it runs out the turn simply ENDS — no penalty, no forfeited assets,
+// nothing already bought is undone. That's deliberate: the timer exists to
+// keep a four-player game moving, not to punish a player who was thinking.
+// Before that happens each player can buy TURN_EXTENSIONS_PER_PLAYER more
+// blocks of time, tracked per player (not per table) so one slow player
+// can't spend everybody else's.
+export const TURN_TIME_SECONDS = 30;
+export const TURN_EXTENSION_SECONDS = 30;
+export const TURN_EXTENSIONS_PER_PLAYER = 4;
+// How long is left when the clock starts looking urgent (colour + sound).
+export const TURN_WARNING_SECONDS = 10;
 
 // ---------------------------------------------------------------------------
 // Business upgrades — four ways to keep growing a business after starting it
@@ -422,6 +455,20 @@ export const RENT_MIN_YIELD_FACTOR = 0.35;
 export const MIN_ASSET_PRICE = 5;
 
 // ---------------------------------------------------------------------------
+// Same-turn sell penalty
+// ---------------------------------------------------------------------------
+// Selling something you bought THIS TURN returns 10% less than the going
+// price. Without it, buying and immediately selling is a free option: prices
+// only move at month-end, so a player could churn a stack back and forth
+// within a turn at zero cost and use the shop as a scratchpad. It also
+// mirrors something real — a spread, a restocking fee, a dealer's margin.
+// You never get back quite what you just paid.
+//
+// Only the units actually bought this turn are penalised; anything held from
+// a previous month sells at full price in the same transaction.
+export const SAME_TURN_SELL_PENALTY = 0.1;
+
+// ---------------------------------------------------------------------------
 // Piggy Bank interest
 // ---------------------------------------------------------------------------
 // The Piggy Bank used to be purely a price-only asset: it held its value
@@ -450,6 +497,10 @@ export const ASSETS = [
   {
     id: 'piggy',
     name: 'Piggy Bank',
+    // Explicit plural — the event log now says "bought 14 Piggy Banks"
+    // rather than 14 separate lines, and naive pluralisation mangles a
+    // name like "Lemonade Stands & More".
+    plural: 'Piggy Banks',
     icon: '🐷',
     tagline: 'Safe & steady — pays a little interest every month',
     kind: 'safe',
@@ -467,9 +518,14 @@ export const ASSETS = [
   },
   {
     id: 'lemonade',
-    name: 'Lemonade Stands & More',
+    name: 'Seasoned Services',
+    // Explicit plural — the event log now says "bought 14 Piggy Banks"
+    // rather than 14 separate lines, and naive pluralisation would mangle
+    // an already-plural-shaped name like "Seasoned Services" into
+    // "Seasoned Servicess".
+    plural: 'Seasoned Services',
     icon: '🍋',
-    tagline: 'Seasonal services like food trucks, lawncare, & more!',
+    tagline: 'Lemonade stands, food trucks, lawncare, sitting services & more!',
     kind: 'bouncy',
     basePrice: 75,
     volatility: 0.15,
@@ -487,17 +543,31 @@ export const ASSETS = [
     // this into the overall "$X–$Y/mo" figure shown in the shop/portfolio
     // UI, since players can't see the hidden weather-duration timer to know
     // which stage's exact range applies next.
+    // Rebalanced downward: at the old uniform ranges a Sunny Boom stand
+    // averaged ~$26/mo on a $75 asset — a 35% MONTHLY yield, which made
+    // lemonade strictly better than everything else in the game and turned
+    // good weather into a formality. The ceiling is deliberately kept (a
+    // genuine heat-wave month should still feel like a windfall); what
+    // changed is the typical month, both by trimming the ranges and by
+    // skewing the roll toward the low end — see players.js's
+    // rollMonthlyIncomeAmounts, which now takes the lower of two draws.
+    // The result: a Sunny Boom stand typically pays around $18 and can
+    // still spike to $34, instead of reliably paying in the high twenties.
     weatherIncomeRange: {
-      sunnyBoom: [18, 34],
-      cloudyPeak: [10, 20],
-      rainyDip: [2, 10],
+      sunnyBoom: [10, 34],
+      cloudyPeak: [6, 20],
+      rainyDip: [1, 9],
       stormyBust: [0, 4],
-      rainbowRebound: [8, 18],
+      rainbowRebound: [5, 18],
     },
   },
   {
     id: 'treehouse',
     name: 'Tree House',
+    // Explicit plural — the event log now says "bought 14 Piggy Banks"
+    // rather than 14 separate lines, and naive pluralisation mangles a
+    // name like "Lemonade Stands & More".
+    plural: 'Tree Houses',
     icon: '🏠',
     tagline: 'Pays you rent every month',
     kind: 'rental',
@@ -509,6 +579,10 @@ export const ASSETS = [
   {
     id: 'treasure',
     name: 'Treasure Chest',
+    // Explicit plural — the event log now says "bought 14 Piggy Banks"
+    // rather than 14 separate lines, and naive pluralisation mangles a
+    // name like "Lemonade Stands & More".
+    plural: 'Treasure Chests',
     icon: '💎',
     tagline: 'Collectibles, meme stocks, crypto tokens, and the new things',
     kind: 'risky',
@@ -552,6 +626,70 @@ export function getAssetIncomeRange(asset) {
 // marketDrift is the average monthly price drift applied to every asset
 // (before each asset's own volatility noise). deckWeight biases which
 // fortune-card deck gets drawn from that month.
+// ---------------------------------------------------------------------------
+// Weather severity — how hard the economy actually hits
+// ---------------------------------------------------------------------------
+// Chosen at setup and stored in game state (every seat plays the same
+// economy, and it has to survive a reload). It scales TWO things:
+//
+//  - `marketDrift` and per-asset volatility, i.e. how far prices move. This
+//    already existed but was mild enough that a storm barely registered.
+//  - business income, which previously ignored the weather ENTIRELY. That
+//    was the bigger gap: a recession that leaves your businesses untouched
+//    isn't a recession, and it made "start businesses, ignore the sky" the
+//    only strategy worth playing. Each stage now has a
+//    `businessIncomeFactor` (see WEATHER_STAGES below) applied to business
+//    income for that month.
+//
+// The multiplier is applied to the DISTANCE from neutral, not to the value
+// itself — so Gentle pulls every effect toward 1.0/0% and Severe pushes it
+// away, and neither can flip a boom into a bust.
+export const WEATHER_SEVERITIES = [
+  {
+    id: 'gentle',
+    name: 'Gentle',
+    icon: '🌤️',
+    tagline: 'The economy nudges. Good for a first game.',
+    multiplier: 0.5,
+  },
+  {
+    id: 'normal',
+    name: 'Normal',
+    icon: '🌦️',
+    tagline: 'Booms and busts you can feel, but ride out.',
+    multiplier: 1,
+  },
+  {
+    id: 'rough',
+    name: 'Rough',
+    icon: '🌧️',
+    tagline: 'Storms really bite. Plan for the bad months.',
+    multiplier: 1.7,
+  },
+  {
+    id: 'severe',
+    name: 'Severe',
+    icon: '⛈️',
+    tagline: 'Brutal swings. Diversify or get wiped out.',
+    multiplier: 2.5,
+  },
+];
+
+export const DEFAULT_WEATHER_SEVERITY_ID = 'normal';
+
+export function getWeatherSeverity(id) {
+  return (
+    WEATHER_SEVERITIES.find((w) => w.id === id) ||
+    WEATHER_SEVERITIES.find((w) => w.id === DEFAULT_WEATHER_SEVERITY_ID)
+  );
+}
+
+/** Scale a value expressed as a distance from `neutral` by the chosen
+ * severity. `severityScaled(-0.05, 'severe')` -> -0.125. */
+export function severityScaled(value, severityId, neutral = 0) {
+  return neutral + (value - neutral) * getWeatherSeverity(severityId).multiplier;
+}
+
 export const WEATHER_ORDER = [
   'sunnyBoom',
   'cloudyPeak',
@@ -573,6 +711,9 @@ export const WEATHER_STAGES = {
     minMonths: 2,
     maxMonths: 4,
     marketDrift: 0.05,
+    // How business revenue moves in this stage, before weather severity
+    // scales it (see WEATHER_SEVERITIES above). Business is booming — customers everywhere.
+    businessIncomeFactor: 1.12,
     deckWeight: { opportunity: 0.75, setback: 0.25 },
   },
   cloudyPeak: {
@@ -584,6 +725,9 @@ export const WEATHER_STAGES = {
     minMonths: 2,
     maxMonths: 3,
     marketDrift: 0.015,
+    // How business revenue moves in this stage, before weather severity
+    // scales it (see WEATHER_SEVERITIES above). Still good, but the rush is easing.
+    businessIncomeFactor: 1.04,
     deckWeight: { opportunity: 0.6, setback: 0.4 },
   },
   rainyDip: {
@@ -595,6 +739,9 @@ export const WEATHER_STAGES = {
     minMonths: 2,
     maxMonths: 3,
     marketDrift: -0.02,
+    // How business revenue moves in this stage, before weather severity
+    // scales it (see WEATHER_SEVERITIES above). Customers are spending a little more carefully.
+    businessIncomeFactor: 0.92,
     deckWeight: { opportunity: 0.4, setback: 0.6 },
   },
   stormyBust: {
@@ -606,6 +753,9 @@ export const WEATHER_STAGES = {
     minMonths: 2,
     maxMonths: 4,
     marketDrift: -0.05,
+    // How business revenue moves in this stage, before weather severity
+    // scales it (see WEATHER_SEVERITIES above). A real downturn — people are cutting back hard.
+    businessIncomeFactor: 0.78,
     deckWeight: { opportunity: 0.25, setback: 0.75 },
   },
   rainbowRebound: {
@@ -617,6 +767,9 @@ export const WEATHER_STAGES = {
     minMonths: 2,
     maxMonths: 3,
     marketDrift: 0.035,
+    // How business revenue moves in this stage, before weather severity
+    // scales it (see WEATHER_SEVERITIES above). Confidence is returning and orders are picking up.
+    businessIncomeFactor: 1.07,
     deckWeight: { opportunity: 0.65, setback: 0.35 },
   },
 };
@@ -626,53 +779,317 @@ export const WEATHER_STAGES = {
 // ---------------------------------------------------------------------------
 // Every card carries a kid-friendly "why" — the money lesson behind what
 // just happened. A card carries either a single `effect` object OR an
-// `effects` array (for a card that does more than one thing at once, e.g.
-// the 3 lemonade cards below, which bump the price AND give a one-time
-// per-unit cash bonus/penalty) — both are read by src/game/decks.js's
-// applyCardEffect. Effect kinds understood by the engine:
-//   cash          { amount }                flat dollars, + or -
-//   cashPercent   { percent }                % of current net worth, + or -
-//   assetPrice    { assetId | 'all', percent } bumps a price (or all prices)
-//   skillToken    { amount }                 + or - skill tokens (floors at 0)
-//   passiveBonus  { amount }                 permanent $/mo passive income, + or -
-//   perUnitCash   { assetId, amount }        one-time $ per unit OWNED of that asset, + or -
+// `effects` array, both read by src/game/decks.js's applyCardEffect.
+//
+// TWO RULES THESE CARDS FOLLOW, both learned the hard way:
+//
+// 1. AN ASSET CARD ONLY AFFECTS SOMEONE WHO OWNS THAT ASSET. Cards used to
+//    hand out flat cash with asset flavour attached — "Tree House Tourists,
+//    +$50" paid a player who had never bought a Tree House, and "Piggy Bank
+//    Interest, +$25" paid someone with no savings. That taught exactly the
+//    wrong lesson: in this game money is supposed to come from what you
+//    own. Anything themed around an asset now uses `perUnitCash` or
+//    `assetUnits`, which scale with holdings and cleanly no-op (with an
+//    honest "no Tree Houses owned — no effect" log line) for everyone else.
+//    `assetPrice` is the one exception and is used deliberately: it's
+//    market news, it moves the shared price table, and it therefore only
+//    ever matters to holders anyway.
+//
+// 2. A SETBACK SHOULD COST SOMETHING THAT MATTERS. "You lost a library book,
+//    -$15" is not a financial lesson, it's a rounding error. The setbacks
+//    below are the kinds of thing that actually derail a small operation: a
+//    partner walking away, equipment failing, a bank going under, a
+//    supplier raising prices. They're bigger, they're recoverable, and each
+//    one has a real-world concept attached.
+//
+// Effect kinds understood by the engine:
+//   cash                 { amount }                     flat dollars, + or -
+//   cashPercent          { percent }                    % of current cash, + or -
+//   assetPrice           { assetId | 'all', percent }   bumps a price (market news)
+//   skillToken           { amount }                     + or - skill tokens (floors at 0)
+//   passiveBonus         { amount }                     permanent $/mo passive income
+//   perUnitCash          { assetId, amount }            one-time $ per unit OWNED
+//   assetUnits           { assetId, percent }           lose/gain a % of the UNITS owned
+//   businessIncomePercent{ percent }                    permanent % change to your best business
+//   businessPause        { months }                     your businesses earn nothing for N months
+//   allowanceModifier    { percent, months }            allowance changed for N months
 export const OPPORTUNITY_DECK = [
-  { id: 'lemonade-rush', title: 'Lemonade Rush', icon: '🍋', flavor: 'A summer heat wave has everyone thirsty!', why: 'When lots of people want the same thing at once, businesses that sell it can do great — that’s called demand.', effects: [{ type: 'assetPrice', assetId: 'lemonade', percent: 12 }, { type: 'perUnitCash', assetId: 'lemonade', amount: 10 }] },
-  { id: 'piggy-interest', title: 'Piggy Bank Interest', icon: '🐷', flavor: 'Your piggy bank paid you a little bonus for saving.', why: 'Banks pay you a small reward called interest just for keeping your money safely saved with them.', effect: { type: 'cash', amount: 25 } },
-  { id: 'birthday-money', title: 'Birthday Money', icon: '🎂', flavor: 'Grandma sent you birthday cash!', why: 'Gifts are a fun way money can come to you — you still get to choose how to save or spend it wisely.', effect: { type: 'cash', amount: 80 } },
-  { id: 'treasure-found', title: 'Treasure Found', icon: '💎', flavor: 'An old treasure map actually led somewhere real!', why: 'Sometimes risky investments pay off big — that extra reward is why people take the chance.', effect: { type: 'assetPrice', assetId: 'treasure', percent: 25 } },
-  { id: 'treehouse-tourists', title: 'Tree House Tourists', icon: '🏠', flavor: 'Kids from the whole neighborhood want to rent your tree house for a party!', why: 'Owning something useful, like property, can earn you money from people who want to use it.', effect: { type: 'cash', amount: 50 } },
-  { id: 'skill-scholarship', title: 'Skill Scholarship', icon: '📚', flavor: 'You won a free workshop spot!', why: 'Learning new skills doesn’t always cost money — sometimes an opportunity is handed right to you.', effect: { type: 'skillToken', amount: 1 } },
-  { id: 'stand-review', title: 'Lucky Stand Review', icon: '🌟', flavor: 'A local newspaper wrote a nice story about your lemonade stand!', why: 'A good reputation brings more customers, which means more money coming in.', effects: [{ type: 'assetPrice', assetId: 'lemonade', percent: 10 }, { type: 'perUnitCash', assetId: 'lemonade', amount: 8 }] },
-  { id: 'garage-sale', title: 'Garage Sale', icon: '🧺', flavor: 'You sold some old toys you didn’t need anymore.', why: 'Selling things you don’t use is a smart, easy way to earn a little extra cash.', effect: { type: 'cash', amount: 40 } },
-  { id: 'market-rally', title: 'Market Rally', icon: '📈', flavor: 'The whole town is feeling good about spending and investing!', why: 'When everyone feels confident about the future, prices often rise together — that’s a rally.', effect: { type: 'cashPercent', percent: 5 } },
-  { id: 'bright-idea', title: 'Bright Idea Bonus', icon: '💡', flavor: 'Your business found a clever way to save money.', why: 'Being creative and solving problems is one of the best ways a business can grow stronger.', effect: { type: 'passiveBonus', amount: 15 } },
-  { id: 'referral', title: 'Neighbor’s Referral', icon: '🤝', flavor: 'A happy customer told all their friends about your tree house.', why: 'Word of mouth — people telling their friends — is free advertising that helps things grow.', effect: { type: 'cash', amount: 45 } },
-  { id: 'rainbow-bonus', title: 'Rainbow Bonus', icon: '🌈', flavor: 'Everything is looking bright for your investments today.', why: 'After hard times, markets often bounce back — that’s why patient savers often win in the end.', effect: { type: 'assetPrice', assetId: 'all', percent: 6 } },
+  {
+    id: 'heat-wave',
+    title: 'Heat Wave',
+    icon: '🌡️',
+    flavor: 'A record-breaking hot spell has every stand in town selling out by noon.',
+    why: 'When far more people want something than usual, the businesses selling it can charge more and sell more. That surge in demand is temporary — smart owners save some of it for the slow months.',
+    effects: [
+      { type: 'assetPrice', assetId: 'lemonade', percent: 10 },
+      { type: 'perUnitCash', assetId: 'lemonade', amount: 7 },
+    ],
+  },
+  {
+    id: 'local-feature',
+    title: 'Featured Locally',
+    icon: '📰',
+    flavor: 'The neighbourhood paper ran a piece on your stand, and the queue has not stopped since.',
+    why: 'A good reputation is an asset you cannot buy directly. Word of mouth brings customers at no cost, which is why owners protect how their business is seen.',
+    effects: [
+      { type: 'assetPrice', assetId: 'lemonade', percent: 8 },
+      { type: 'perUnitCash', assetId: 'lemonade', amount: 5 },
+    ],
+  },
+  {
+    id: 'season-lease',
+    title: 'Season-Long Lease',
+    icon: '🔑',
+    flavor: 'A family booked your tree house for the whole season and paid up front.',
+    why: 'A longer lease means steadier, more predictable income. Landlords often accept a slightly lower rate in exchange for knowing the place will not sit empty.',
+    effect: { type: 'perUnitCash', assetId: 'treehouse', amount: 32 },
+  },
+  {
+    id: 'neighbourhood-rezoned',
+    title: 'Neighbourhood Rezoned',
+    icon: '🏗️',
+    flavor: 'The council approved a new park nearby, and every property around it just became more desirable.',
+    why: 'Property values depend heavily on location and on what is being built nearby — things the owner did not do and cannot control.',
+    effect: { type: 'assetPrice', assetId: 'treehouse', percent: 14 },
+  },
+  {
+    id: 'collector-demand',
+    title: 'Collectors Pile In',
+    icon: '💎',
+    flavor: 'A famous collector mentioned your kind of chest online, and buyers appeared overnight.',
+    why: 'Speculative things are worth whatever the next buyer will pay. That can move enormously on nothing more than attention — which is why it can vanish just as fast.',
+    effects: [
+      { type: 'assetPrice', assetId: 'treasure', percent: 22 },
+      { type: 'perUnitCash', assetId: 'treasure', amount: 12 },
+    ],
+  },
+  {
+    id: 'rate-rise',
+    title: 'Savings Rates Rise',
+    icon: '🏦',
+    flavor: 'Banks are competing for savers, and yours raised its rate to keep you.',
+    why: 'Interest is what a bank pays to borrow your money. When banks need deposits, savers get a better deal — which is why it pays to notice what your bank is offering.',
+    effect: { type: 'perUnitCash', assetId: 'piggy', amount: 4 },
+  },
+  {
+    id: 'repeat-client',
+    title: 'A Client Signs On',
+    icon: '🤝',
+    flavor: 'A customer who kept coming back has committed to a standing monthly order.',
+    why: 'Regular customers are worth far more than one-off sales — the income is predictable, and you do not have to spend to win them again each month.',
+    effect: { type: 'businessIncomePercent', percent: 15 },
+  },
+  {
+    id: 'bulk-supplier',
+    title: 'Better Supplier Terms',
+    icon: '📦',
+    flavor: 'Buying in larger batches got you a lower price on everything you use.',
+    why: 'Cutting what it costs you to make something raises your profit just as surely as selling more of it — and nobody has to buy anything extra.',
+    effect: { type: 'businessIncomePercent', percent: 12 },
+  },
+  {
+    id: 'process-fix',
+    title: 'A Smarter Way',
+    icon: '💡',
+    flavor: 'You found a way to do the same work in half the time.',
+    why: 'Working out how to do something more efficiently pays you every month from then on, not just once.',
+    effect: { type: 'passiveBonus', amount: 18 },
+  },
+  {
+    id: 'apprenticeship',
+    title: 'Apprenticeship Offer',
+    icon: '🎓',
+    flavor: 'Someone who is good at what you want to do offered to teach you.',
+    why: 'Skills are the one investment nobody can take from you, and the cheapest way to get them is usually from someone already doing the work.',
+    effect: { type: 'skillToken', amount: 1 },
+  },
+  {
+    id: 'grant-awarded',
+    title: 'Young Founder Grant',
+    icon: '🏆',
+    flavor: 'You applied for a small business grant months ago — and you got it.',
+    why: 'Some money is available to people who simply ask for it. Grants, scholarships and competitions reward the effort of applying.',
+    effect: { type: 'cash', amount: 120 },
+  },
+  {
+    id: 'weekend-work',
+    title: 'Weekend Shifts',
+    icon: '🛠️',
+    flavor: 'You picked up extra hours and put every dollar of it aside.',
+    why: 'Trading time for money is the most reliable way to start — the goal is turning that money into something that earns without you.',
+    effect: { type: 'cash', amount: 70 },
+  },
+  {
+    id: 'overcharge-refund',
+    title: 'Billing Error Refunded',
+    icon: '🧾',
+    flavor: 'You checked an invoice properly and found you had been overcharged for months.',
+    why: 'Reading your own statements is unglamorous and genuinely pays. Errors are more common than most people assume.',
+    effect: { type: 'cash', amount: 55 },
+  },
+  {
+    id: 'route-expanded',
+    title: 'Your Round Expands',
+    icon: '📈',
+    flavor: 'Two more streets asked if you would take on their work as well.',
+    why: 'Growing a small operation often means simply serving more people nearby — no new idea required.',
+    effect: { type: 'allowanceModifier', percent: 40, months: 3 },
+  },
+  {
+    id: 'broad-rally',
+    title: 'Broad Rally',
+    icon: '📊',
+    flavor: 'Confidence is up across the whole market and almost everything gained.',
+    why: 'When people feel good about the future, prices tend to rise together. A rally lifts what you already own without you doing anything.',
+    effect: { type: 'assetPrice', assetId: 'all', percent: 6 },
+  },
+  {
+    id: 'dividend',
+    title: 'A Payout Arrives',
+    icon: '💵',
+    flavor: 'Something you invested in a while ago paid out a share of its profits.',
+    why: 'Some investments pay you a slice of their earnings while you keep owning them. That is a dividend — income you did not have to sell anything to get.',
+    effect: { type: 'cashPercent', percent: 6 },
+  },
 ];
 
 export const SETBACK_DECK = [
-  { id: 'tooth-trouble', title: 'Tooth Trouble', icon: '🦷', flavor: 'Oops — a trip to the dentist wasn’t free!', why: 'Surprises happen to everyone. That’s why it’s smart to always keep a little cash saved for emergencies.', effect: { type: 'cash', amount: -40 } },
-  { id: 'lemonade-spill', title: 'Lemonade Spill', icon: '🍋', flavor: 'A sudden storm ruined your lemonade stand’s ingredients.', why: 'Bouncy businesses can lose value fast — but they can also bounce back. That’s the risk of volatility.', effects: [{ type: 'assetPrice', assetId: 'lemonade', percent: -15 }, { type: 'perUnitCash', assetId: 'lemonade', amount: -6 }] },
-  { id: 'treasure-sinks', title: 'Treasure Chest Sinks', icon: '💎', flavor: 'The market got spooked and treasure prices dropped fast.', why: 'Risky investments can lose a lot of value quickly — never put in money you can’t afford to lose.', effect: { type: 'assetPrice', assetId: 'treasure', percent: -30 } },
-  { id: 'broken-toy', title: 'Broken Toy', icon: '🧸', flavor: 'You accidentally broke something and had to pay to fix it.', why: 'Unexpected costs pop up in life — a little emergency savings helps you handle them without stress.', effect: { type: 'cash', amount: -35 } },
-  { id: 'roof-repair', title: 'Rainy Roof Repair', icon: '🏠', flavor: 'Your tree house needs a new roof after the storm.', why: 'Owning property means sometimes paying for repairs — that’s part of the cost of owning things.', effect: { type: 'cash', amount: -50 } },
-  { id: 'missed-bus', title: 'Missed the Bus', icon: '🚌', flavor: 'You had to pay for a ride after missing the bus.', why: 'Small costs add up. Planning ahead helps you avoid paying extra for surprises.', effect: { type: 'cash', amount: -20 } },
-  { id: 'market-jitters', title: 'Market Jitters', icon: '📉', flavor: 'Everyone got a little nervous about spending and saving.', why: 'When people worry about the economy, prices can dip for a while — that’s normal, and usually temporary.', effect: { type: 'cashPercent', percent: -5 } },
-  { id: 'slow-season', title: 'Slow Season', icon: '🍂', flavor: 'Business has been quieter than usual this month.', why: 'Not every month is a big one for a business — income can go up and down, and that’s okay.', effect: { type: 'passiveBonus', amount: -10 } },
-  { id: 'library-fee', title: 'Lost Library Book', icon: '📖', flavor: 'You had to pay a fee for a book you couldn’t find.', why: 'Taking care of your things (and keeping track of them) helps you avoid paying for mistakes.', effect: { type: 'cash', amount: -15 } },
-  { id: 'piggy-borrow', title: 'Piggy Bank Piggy-back', icon: '🐷', flavor: 'Your little sibling “borrowed” a few coins without asking!', why: 'Even safe savings can shrink a little sometimes — it helps to check in on your money now and then.', effect: { type: 'cash', amount: -10 } },
-  { id: 'storm-damage', title: 'Storm Damage', icon: '⛈️', flavor: 'A big storm shook up the whole market.', why: 'Stormy times can drag prices down across the board, even for careful savers.', effect: { type: 'assetPrice', assetId: 'all', percent: -8 } },
-  { id: 'skill-slipup', title: 'Skill Slip-up', icon: '📚', flavor: 'You lost focus and forgot part of what you learned!', why: 'Skills need practice — it’s totally normal to have setbacks while you’re still learning.', effect: { type: 'skillToken', amount: -1 } },
+  {
+    id: 'partner-fallout',
+    title: 'The Partnership Splits',
+    icon: '💔',
+    flavor: 'You and the friend you started this with fell out badly, and they took their half of the work with them.',
+    why: 'A business partnership is a real financial arrangement, not just a friendship. Agreeing early who owns what — in writing — is what stops a disagreement from costing half a company.',
+    effect: { type: 'businessIncomePercent', percent: -50 },
+  },
+  {
+    id: 'equipment-failure',
+    title: 'Equipment Fails',
+    icon: '🔧',
+    flavor: 'The one machine everything depends on broke, and nothing ships until it is replaced.',
+    why: 'If a business has a single point of failure, that is its real risk — not competition. This is what maintenance budgets and spare parts are for.',
+    effect: { type: 'businessPause', months: 1 },
+  },
+  {
+    id: 'bank-fails',
+    title: 'Your Bank Fails',
+    icon: '🏦',
+    flavor: 'The bank holding your savings collapsed, and not all of it came back.',
+    why: 'Even "safe" is not the same as risk-free. Spreading savings across more than one place is why deposit protection limits exist.',
+    effect: { type: 'assetUnits', assetId: 'piggy', percent: -12 },
+  },
+  {
+    id: 'route-lost',
+    title: 'Your Work Partner Moves Away',
+    icon: '🚚',
+    flavor: 'The neighbour you shared the round with moved, and a competitor picked up half of it before you could.',
+    why: 'Income that depends on one person or one arrangement can halve overnight. That is concentration risk, and it applies to a paycheck as much as a portfolio.',
+    effect: { type: 'allowanceModifier', percent: -50, months: 2 },
+  },
+  {
+    id: 'supplier-hike',
+    title: 'Supplier Raises Prices',
+    icon: '📦',
+    flavor: 'Your costs went up and your customers will not pay more.',
+    why: 'When what you pay rises faster than what you can charge, your margin gets squeezed. Owners face this constantly and it rarely reverses on its own.',
+    effect: { type: 'businessIncomePercent', percent: -18 },
+  },
+  {
+    id: 'product-recall',
+    title: 'A Batch Goes Wrong',
+    icon: '⚠️',
+    flavor: 'You had to pull a bad batch, refund everyone, and apologise publicly.',
+    why: 'Doing the right thing after a mistake costs money now and protects the reputation that earns money later. Owners who hide problems usually pay more in the end.',
+    effect: { type: 'businessIncomePercent', percent: -22 },
+  },
+  {
+    id: 'storm-damage-rental',
+    title: 'Storm Damage',
+    icon: '🌩️',
+    flavor: 'A serious storm went through and your rental needs real repairs before anyone can use it.',
+    why: 'Property earns rent but also demands upkeep. That cost is part of owning it, and it does not wait for a convenient month.',
+    effect: { type: 'perUnitCash', assetId: 'treehouse', amount: -34 },
+  },
+  {
+    id: 'collector-crash',
+    title: 'Collectors Move On',
+    icon: '📉',
+    flavor: 'The buzz died, the buyers vanished, and prices fell through the floor.',
+    why: 'Anything worth only what the next buyer will pay can fall as fast as it rose. This is exactly the risk you accept for the chance at the upside.',
+    effects: [
+      { type: 'assetPrice', assetId: 'treasure', percent: -28 },
+      { type: 'perUnitCash', assetId: 'treasure', amount: -9 },
+    ],
+  },
+  {
+    id: 'health-inspection',
+    title: 'Failed Inspection',
+    icon: '🧊',
+    flavor: 'An inspector shut the stand for two days until you fixed the storage.',
+    why: 'Rules about safety are a real cost of operating, and ignoring them costs far more than following them.',
+    effects: [
+      { type: 'assetPrice', assetId: 'lemonade', percent: -12 },
+      { type: 'perUnitCash', assetId: 'lemonade', amount: -5 },
+    ],
+  },
+  {
+    id: 'insurance-due',
+    title: 'Insurance Comes Due',
+    icon: '📄',
+    flavor: 'The annual premium landed, and it went up again this year.',
+    why: 'Insurance is money you pay so a bad month cannot end you. It feels wasted right up until the year you need it.',
+    effect: { type: 'cash', amount: -75 },
+  },
+  {
+    id: 'account-compromised',
+    title: 'Account Compromised',
+    icon: '🔐',
+    flavor: 'Someone got into one of your accounts before you noticed.',
+    why: 'Protecting how you access your money matters as much as growing it. Checking statements is how most people find out at all.',
+    effect: { type: 'cashPercent', percent: -9 },
+  },
+  {
+    id: 'market-jitters',
+    title: 'Market Jitters',
+    icon: '😬',
+    flavor: 'Nervous news had everyone selling at once, whether they needed to or not.',
+    why: 'Prices fall partly on facts and partly on feelings. Selling in a panic is how a temporary dip becomes a permanent loss.',
+    effect: { type: 'assetPrice', assetId: 'all', percent: -8 },
+  },
+  {
+    id: 'urgent-repair',
+    title: 'An Urgent Repair',
+    icon: '🚗',
+    flavor: 'Something you rely on every day broke and could not wait.',
+    why: 'This is precisely what an emergency fund is for. Without one, a normal surprise forces you to sell something you meant to keep.',
+    effect: { type: 'cash', amount: -85 },
+  },
+  {
+    id: 'quiet-quarter',
+    title: 'A Quiet Quarter',
+    icon: '🍂',
+    flavor: 'Demand simply dropped for a while, through nothing you did wrong.',
+    why: 'Most businesses have seasons. Planning for the slow months during the busy ones is what keeps an owner from panicking through them.',
+    effect: { type: 'passiveBonus', amount: -14 },
+  },
+  {
+    id: 'staff-shortage',
+    title: 'Short-Handed',
+    icon: '🧑‍🔧',
+    flavor: 'You could not cover the work this month and had to turn jobs away.',
+    why: 'A business that only works when one specific person shows up is fragile. Growth usually means building something that runs without you.',
+    effect: { type: 'businessPause', months: 1 },
+  },
+  {
+    id: 'skills-stale',
+    title: 'Out of Practice',
+    icon: '📚',
+    flavor: 'You have not used what you learned in a while, and it shows.',
+    why: 'Skills fade without practice. Keeping them sharp is cheaper than learning them again from scratch.',
+    effect: { type: 'skillToken', amount: -1 },
+  },
 ];
 
-// ---------------------------------------------------------------------------
-// Badges / achievements — extensible registry
-// ---------------------------------------------------------------------------
-// `kind` maps to a generic checker in src/game/badges.js. Add a badge here
-// with an EXISTING kind and it just works with zero logic changes. New kinds
-// need one small checker added in badges.js. `kind` values also double as
-// the stable identifier synced to the future VentureScouts badge service.
 export const BADGES = [
   {
     id: 'moneyGrower',
@@ -1253,7 +1670,11 @@ export const BUSINESS_NAMES = [
 // small bit of extra replay incentive beyond any single game. Hot-seat mode
 // only ever indexes the first 3 entries (its max player count), so adding
 // more avatars at the end here never changes that path's behavior.
-export const PLAYER_AVATARS = ['🦊', '🐼', '🐸', '🦁', '🐨', '🐯', '🦄', '🐲'];
+export const PLAYER_AVATARS = [
+  '🦊', '🐼', '🐸', '🦁', '🐨', '🐯', '🦄', '🐲',
+  '🐶', '🐱', '🐰', '🐻', '🐷', '🐮', '🦉', '🐙',
+  '🦋', '🐢', '🦖', '🐳', '🦈', '🐝', '🦜', '🐧',
+];
 export const STARTER_AVATAR_COUNT = 3;
 
 // Each entry's `avatar` must be one of PLAYER_AVATARS above (index >=
@@ -1262,25 +1683,80 @@ export const STARTER_AVATAR_COUNT = 3;
 // localStorage — separate from any single game save, so this persists
 // across "New Game"/"Play Again" and even across devices sharing the same
 // browser profile.
+//
+// Deliberately spans every requirement type meetsRequirement() knows
+// (games played, badges, net worth, passive income, businesses started,
+// businesses sold) rather than just escalating one counter — a trader who
+// never starts a business and a builder who never sells one should both
+// have unlocks waiting on them, not just whoever racks up the most games.
+// Roughly ordered easy-to-hard, but the type varies on purpose so the
+// early unlocks don't all reward the exact same play style.
 export const AVATAR_UNLOCKS = [
+  { avatar: '🐶', requirement: { type: 'gamesPlayed', value: 1 }, hint: 'Finish your first game' },
   { avatar: '🦁', requirement: { type: 'gamesPlayed', value: 3 }, hint: 'Play 3 games' },
+  { avatar: '🐰', requirement: { type: 'badgesEarned', value: 2 }, hint: 'Earn 2 badges total (across all your games)' },
+  { avatar: '🐱', requirement: { type: 'netWorth', value: 500 }, hint: 'Finish a game with $500+ net worth' },
   { avatar: '🐨', requirement: { type: 'badgesEarned', value: 5 }, hint: 'Earn 5 badges total (across all your games)' },
+  { avatar: '🐮', requirement: { type: 'passiveIncome', value: 50 }, hint: 'Reach $50/mo passive income in a game' },
+  { avatar: '🐻', requirement: { type: 'gamesPlayed', value: 5 }, hint: 'Play 5 games' },
   { avatar: '🐯', requirement: { type: 'netWorth', value: 2000 }, hint: 'Finish a game with $2,000+ net worth' },
+  { avatar: '🐷', requirement: { type: 'netWorth', value: 1000 }, hint: 'Finish a game with $1,000+ net worth' },
+  { avatar: '🐙', requirement: { type: 'businessesStarted', value: 5 }, hint: 'Start 5 businesses total (across all your games)' },
+  { avatar: '🦉', requirement: { type: 'badgesEarned', value: 10 }, hint: 'Earn 10 badges total (across all your games)' },
   { avatar: '🦄', requirement: { type: 'gamesPlayed', value: 10 }, hint: 'Play 10 games' },
+  { avatar: '🐢', requirement: { type: 'netWorth', value: 5000 }, hint: 'Finish a game with $5,000+ net worth' },
   { avatar: '🐲', requirement: { type: 'passiveIncome', value: 300 }, hint: 'Reach $300/mo passive income in a game' },
+  { avatar: '🦋', requirement: { type: 'gamesPlayed', value: 15 }, hint: 'Play 15 games' },
+  { avatar: '🐝', requirement: { type: 'businessesSold', value: 3 }, hint: 'Sell 3 businesses total (across all your games)' },
+  { avatar: '🦖', requirement: { type: 'businessesStarted', value: 15 }, hint: 'Start 15 businesses total (across all your games)' },
+  { avatar: '🐳', requirement: { type: 'passiveIncome', value: 600 }, hint: 'Reach $600/mo passive income in a game' },
+  { avatar: '🦈', requirement: { type: 'netWorth', value: 10000 }, hint: 'Finish a game with $10,000+ net worth' },
+  { avatar: '🦜', requirement: { type: 'gamesPlayed', value: 25 }, hint: 'Play 25 games' },
+  { avatar: '🐧', requirement: { type: 'passiveIncome', value: 1000 }, hint: 'Reach $1,000/mo passive income in a game' },
 ];
 
 // A cosmetic board theme, unlocked the same way as avatars — see
 // game/profile.js + App.jsx (applies the selected theme as a data
-// attribute the CSS keys off of).
+// attribute the CSS keys off of). Each swaps only the "brand" tokens
+// (theme.css's [data-theme='...'] blocks) — the semantic colors (green =
+// good, red = bad, blue = info) are never touched by a theme, so a color's
+// MEANING stays consistent no matter which one is active.
 export const BOARD_THEMES = [
   { id: 'classic', name: 'Classic', icon: '🎨', requirement: null },
+  {
+    id: 'grove',
+    name: 'Sunny Grove',
+    icon: '🌿',
+    requirement: { type: 'gamesPlayed', value: 2 },
+    hint: 'Play 2 games',
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean Breeze',
+    icon: '🌊',
+    requirement: { type: 'netWorth', value: 3000 },
+    hint: 'Finish a game with $3,000+ net worth',
+  },
+  {
+    id: 'berry',
+    name: 'Berry Pop',
+    icon: '🍓',
+    requirement: { type: 'badgesEarned', value: 6 },
+    hint: 'Earn 6 badges total (across all your games)',
+  },
   {
     id: 'gold',
     name: 'Gold Table',
     icon: '✨',
     requirement: { type: 'badgesEarned', value: 8 },
     hint: 'Earn 8 badges total (across all your games)',
+  },
+  {
+    id: 'arcade',
+    name: 'Midnight Arcade',
+    icon: '🌌',
+    requirement: { type: 'gamesPlayed', value: 20 },
+    hint: 'Play 20 games',
   },
 ];
 

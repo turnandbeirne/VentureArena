@@ -9,6 +9,56 @@ body {
   color: #1f2430;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Site masthead — logo, wordmark, cursive tagline, links to venturemaker.org */
+/* ---------------------------------------------------------------------- */
+
+.arena-brand {
+  display: block;
+  max-width: 900px;
+  margin: 24px auto 0;
+  padding: 0 20px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.arena-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.arena-brand-mark {
+  flex-shrink: 0;
+  color: #1f2430;
+}
+
+.arena-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.arena-brand-name {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #1f2430;
+  letter-spacing: -0.02em;
+}
+
+.arena-brand-subtitle {
+  font-size: 0.85rem;
+  color: #777;
+}
+
+.arena-brand-tagline {
+  margin: 4px 0 0 56px;
+  font-family: 'Dancing Script', cursive;
+  font-size: 1.15rem;
+  color: #2f6f4f;
+}
+
 .arena-shell {
   max-width: 420px;
   margin: 10vh auto 0;

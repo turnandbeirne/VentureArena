@@ -1,0 +1,2940 @@
+/* game.css leans entirely on theme.css's --vf-* custom properties (colors,
+   radii, shadows, border width) — every rule below assumes they exist.
+   This app never imported theme.css anywhere (main.jsx/App.jsx/styles.css
+   all skip it), so every var(--vf-...) reference here was silently
+   resolving to nothing and every vf-* element — buttons, cards, pills,
+   the board itself — was rendering unstyled. Importing it right here,
+   at the top of the one stylesheet that actually needs it, means it's
+   guaranteed to load wherever game.css does (both of its current
+   importers, and any future one) without depending on some other file
+   remembering to load it first. */
+@import './theme.css';
+
+.vf-page {
+  min-height: 100vh;
+  padding: 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Two-column layout: the main board (setup, shop, actions) on the left,
+   a sticky sidebar (weather detail, event log, chat) on the right — so
+   the game's "what's happening" info stays visible without scrolling
+   past it. Collapses to the original single stacked column on narrower
+   screens, where there's no room for two columns side by side. */
+.vf-board-layout {
+  width: 100%;
+  max-width: 1360px;
+  display: grid;
+  grid-template-columns: minmax(0, 1000px) minmax(300px, 360px);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 1020px) {
+  .vf-board-layout {
+    grid-template-columns: 1fr;
+    max-width: 1000px;
+  }
+
+  .vf-board-sidebar {
+    position: static !important;
+  }
+}
+
+.vf-board {
+  width: 100%;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.vf-board-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  position: sticky;
+  top: 1.25rem;
+}
+
+/* Header ------------------------------------------------------------- */
+.vf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.vf-header__logo {
+  font-size: 1.7rem;
+  font-weight: 600;
+}
+
+.vf-header__logo span {
+  color: var(--vf-teal);
+}
+
+.vf-header__right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.vf-weather-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--vf-orange);
+  color: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.55rem 1.1rem;
+  font-weight: 600;
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-weather-badge__icon {
+  font-size: 1.3rem;
+}
+
+/* Fuller weather readout for the sidebar (WeatherCard.jsx) — the header's
+   WeatherBadge pill above stays for a quick glance from anywhere. */
+.vf-weather-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.1rem;
+}
+
+.vf-weather-card__icon {
+  font-size: 2.1rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.vf-weather-card__name {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.vf-weather-card__blurb {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+}
+
+/* Persistent stats strip (StatsHUD.jsx) ---------------------------------
+   Sticky, not fixed — it lives at the very top of .vf-board's own flow, so
+   it never overlaps the header above it, and once you've scrolled past
+   that natural position it pins to the top of the viewport (same idiom as
+   .vf-board-sidebar below) so your cash/net-worth/passive numbers stay in
+   view through the whole shop + action bar, on phone or desktop alike.
+
+   The sticky positioning is on THIS wrapper, deliberately not on the
+   button inside it that scrolls horizontally (.vf-stats-hud below) — an
+   element can't safely be both `position: sticky` and its own
+   `overflow: auto` scroll container on iOS/WebKit (every browser on
+   iPhone, not just Safari itself): it silently drops the sticky behavior
+   there, even though desktop browsers render it fine. Splitting the two
+   responsibilities across parent/child avoids the bug outright rather
+   than working around a specific engine's quirks. */
+.vf-stats-hud-wrap {
+  position: sticky;
+  top: 0.6rem;
+  z-index: 30;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.vf-stats-hud {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.4rem 0.7rem;
+  background: var(--vf-white);
+  color: var(--vf-ink);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  box-shadow: var(--vf-shadow-sm);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.vf-stats-hud::-webkit-scrollbar {
+  display: none;
+}
+
+.vf-stats-hud__item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.vf-stats-hud__item--worth {
+  color: var(--vf-teal-dark);
+}
+
+.vf-stats-hud__icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.vf-stats-hud__portfolio-hint {
+  white-space: nowrap;
+  color: var(--vf-ink-soft);
+  font-weight: 600;
+  padding-left: 0.35rem;
+  border-left: 2px solid var(--vf-cream-deep);
+}
+
+@media (max-width: 520px) {
+  .vf-stats-hud {
+    gap: 0.5rem;
+    padding: 0.35rem 0.6rem;
+    font-size: 0.76rem;
+    justify-content: flex-start;
+  }
+
+  .vf-stats-hud__portfolio-hint {
+    display: none;
+  }
+}
+
+/* Month progress ------------------------------------------------------ */
+.vf-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vf-progress__track {
+  height: 20px;
+  border-radius: var(--vf-radius-pill);
+  border: var(--vf-border-width) solid var(--vf-border);
+  background: var(--vf-white);
+  overflow: hidden;
+}
+
+.vf-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--vf-teal), var(--vf-green));
+  transition: width 0.4s ease;
+}
+
+.vf-progress__label {
+  text-align: center;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  font-size: 0.95rem;
+}
+
+/* Player panel --------------------------------------------------------- */
+.vf-players {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.85rem;
+}
+
+.vf-player-card {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  background: var(--vf-white);
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.vf-player-card:hover,
+.vf-player-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 3px var(--vf-teal-light, var(--vf-teal)), var(--vf-shadow);
+}
+
+.vf-player-card--active {
+  background: var(--vf-cream-deep);
+  border-color: var(--vf-teal);
+  box-shadow: 0 0 0 3px var(--vf-teal), var(--vf-shadow);
+}
+
+.vf-player-card__name {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+/* The "wealth pile" — see components/WealthPile.jsx / game/wealthPile.js —
+   a cluster of icons next to a player's name that grows as their net worth
+   crosses each threshold. Icons overlap slightly and tilt at alternating
+   angles (via the --vf-pile-i custom property each icon sets inline) so it
+   reads as a loose, growing pile rather than a tidy row of badges. */
+.vf-wealth-pile {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.15rem;
+}
+
+.vf-wealth-pile__icon {
+  font-size: 0.85rem;
+  line-height: 1;
+  margin-left: -0.3rem;
+  transform: rotate(calc((var(--vf-pile-i, 0) * 11deg) - 16deg)) translateY(calc(var(--vf-pile-i, 0) * -1px));
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+}
+
+.vf-wealth-pile__icon:first-child {
+  margin-left: 0.1rem;
+}
+
+.vf-player-card__networth {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+}
+
+.vf-player-card__stat {
+  font-size: 0.9rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vf-player-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.vf-player-card__tap-hint {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--vf-teal-dark);
+  opacity: 0.75;
+}
+
+.vf-player-card__invest-btn {
+  margin-top: 0.4rem;
+}
+
+/* A business needs attention soon (see PlayerPanel.jsx's worstBusinessHealth)
+   — a step below vf-btn--danger's full red (used once a business is
+   actually declining), just a warm yellow heads-up. */
+.vf-player-card__invest-btn--warning {
+  background: var(--vf-yellow);
+  color: #5c4400;
+}
+
+.vf-badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--vf-yellow);
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Turn banner ----------------------------------------------------------- */
+.vf-turn-banner {
+  background: var(--vf-yellow);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-lg);
+  padding: 0.9rem 1.25rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+
+.vf-turn-banner__text {
+  flex: 1 1 auto;
+}
+
+.vf-turn-banner__end-btn {
+  flex: 0 0 auto;
+}
+
+.vf-turn-banner--ai {
+  background: var(--vf-blue);
+  color: var(--vf-white);
+}
+
+/* Shop -------------------------------------------------------------- */
+.vf-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-bottom: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.vf-section-title__hint {
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+  opacity: 0.8;
+}
+
+.vf-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.85rem;
+}
+
+.vf-asset-card {
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  text-align: center;
+  background: var(--vf-white);
+}
+
+.vf-asset-card__icon {
+  font-size: 2.2rem;
+}
+
+.vf-asset-card__name {
+  font-weight: 600;
+}
+
+.vf-asset-card__tagline {
+  font-size: 0.78rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  min-height: 1.4em;
+}
+
+.vf-asset-card__risk {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+.vf-asset-card__risk-dots {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.vf-risk-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--vf-cream-deep);
+  border: 1px solid var(--vf-border);
+}
+
+.vf-risk-dot--on {
+  background: var(--vf-orange);
+}
+
+.vf-asset-card__price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.vf-asset-card__trend {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.vf-asset-card__trend--up {
+  color: var(--vf-green-dark);
+}
+
+.vf-asset-card__trend--down {
+  color: var(--vf-red-dark);
+}
+
+.vf-asset-card__owned {
+  font-size: 0.82rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-asset-card__rent {
+  font-size: 0.78rem;
+  color: var(--vf-green-dark);
+  font-weight: 600;
+}
+
+.vf-asset-card__crowding {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-asset-card__no-income {
+  font-size: 0.78rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-asset-card__weather-income {
+  font-size: 0.78rem;
+  color: var(--vf-green-dark);
+  font-weight: 600;
+}
+
+.vf-asset-card__income-range {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-asset-card__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  width: 100%;
+}
+
+.vf-asset-card__actions .vf-btn {
+  flex: 1;
+  padding: 0.45rem 0.6rem;
+  min-height: 40px;
+  font-size: 0.85rem;
+}
+
+/* Action bar --------------------------------------------------------- */
+.vf-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.vf-action-bar .vf-btn {
+  flex: 1;
+  min-width: 160px;
+}
+
+.vf-done-row {
+  display: flex;
+  justify-content: center;
+}
+
+/* Log ----------------------------------------------------------------- */
+.vf-log {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--vf-white);
+}
+
+.vf-log__entry {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+  display: flex;
+  gap: 0.45rem;
+  animation: vf-fade-in 0.2s ease;
+}
+
+/* A "the roll just landed" flourish for entries whose numbers were just
+   decided by a random % roll (Marketing/Sales/R&D payoffs — see
+   EventLog.jsx's REVEAL_KINDS) — a brief highlight-and-settle instead of
+   the number just flatly appearing, since buying one of these upgrades is
+   now genuinely a small gamble (see gameConfig.js's *_PCT_MIN/MAX). Pure
+   CSS, plays exactly once on mount (a log entry is never re-added). */
+.vf-log__entry--reveal {
+  animation: vf-roll-reveal 0.8s ease-out;
+  border-radius: var(--vf-radius-sm);
+  padding: 0.15rem 0.35rem;
+  margin: -0.15rem -0.35rem;
+}
+
+@keyframes vf-roll-reveal {
+  0% {
+    transform: scale(0.9);
+    background: var(--vf-yellow);
+    box-shadow: 0 0 0 2px var(--vf-yellow);
+  }
+  55% {
+    transform: scale(1.04);
+    background: var(--vf-yellow);
+  }
+  100% {
+    transform: scale(1);
+    background: transparent;
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.vf-log__lesson {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--vf-teal-dark);
+  background: var(--vf-cream);
+  border: 2px dashed var(--vf-teal);
+  border-radius: var(--vf-radius-sm);
+  padding: 0.4rem 0.6rem;
+  margin: 0.15rem 0 0.15rem 1.3rem;
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+  animation: vf-fade-in 0.2s ease;
+}
+
+.vf-log__lesson-icon {
+  flex: 0 0 auto;
+}
+
+.vf-log__empty {
+  font-size: 0.88rem;
+  color: var(--vf-ink-soft);
+  font-style: italic;
+}
+
+/* Bot chat --------------------------------------------------------------- */
+.vf-chat-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.vf-chat {
+  max-height: 340px;
+  overflow-y: auto;
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: var(--vf-white);
+}
+
+.vf-chat__entry {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-chat__avatar {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.vf-chat__bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-md);
+  border-left: 4px solid var(--bot-color, #868e96);
+  padding: 0.4rem 0.65rem;
+  min-width: 0;
+}
+
+.vf-chat__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  /* color set inline per-entry (bot personality color) — see ChatEntryRow */
+}
+
+.vf-chat__message {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--vf-ink);
+  word-break: break-word;
+}
+
+/* A goof-off sound-effect moment (fart/burp/laugh/screech/...) reads as "a
+   noise", not a sentence — dashed border, italic caption. */
+.vf-chat__entry--sfx .vf-chat__bubble {
+  border-left-style: dashed;
+  background: var(--vf-white);
+}
+
+.vf-chat__entry--sfx .vf-chat__message {
+  font-style: italic;
+  color: var(--vf-ink-soft);
+}
+
+/* A real player-typed message — highlighted solid so it's obviously not a
+   canned bot line. */
+.vf-chat__entry--human .vf-chat__bubble {
+  background: var(--vf-yellow);
+  border-left-style: solid;
+}
+
+.vf-chat__target {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.vf-chat-composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  border-top: var(--vf-border-width) solid var(--vf-border);
+  background: var(--vf-cream);
+  position: relative;
+}
+
+.vf-chat-composer__from {
+  flex: 0 0 auto;
+  min-width: 90px;
+}
+
+.vf-chat-composer__input {
+  flex: 1 1 140px;
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+}
+
+.vf-chat-composer__to {
+  flex: 0 0 auto;
+  min-width: 100px;
+}
+
+.vf-chat-composer__error {
+  flex-basis: 100%;
+}
+
+.vf-gameover__chat {
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  background: var(--vf-white);
+}
+
+/* Error toast ----------------------------------------------------------- */
+.vf-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--vf-red);
+  color: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.7rem 1.3rem;
+  font-weight: 600;
+  box-shadow: var(--vf-shadow);
+  z-index: 50;
+  animation: vf-pop-in 0.15s ease;
+}
+
+/* Modal ----------------------------------------------------------------- */
+.vf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(36, 38, 46, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  z-index: 40;
+  animation: vf-fade-in 0.15s ease;
+}
+
+.vf-modal {
+  width: 100%;
+  max-width: 420px;
+  padding: 1.75rem;
+  background: var(--vf-white);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-modal--good {
+  border-color: var(--vf-green-dark);
+}
+
+.vf-modal--bad {
+  border-color: var(--vf-red-dark);
+}
+
+.vf-modal__who {
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+/* Net worth chart (game-over recap) ------------------------------------- */
+.vf-networth-chart {
+  width: 100%;
+}
+
+.vf-networth-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.vf-networth-chart__grid {
+  stroke: var(--vf-cream-deep);
+  stroke-width: 1;
+}
+
+.vf-networth-chart__axis {
+  stroke: var(--vf-ink-soft);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.vf-networth-chart__axis-label {
+  font-size: 9px;
+  fill: var(--vf-ink-soft);
+  font-family: 'Fredoka', system-ui, sans-serif;
+}
+
+.vf-networth-chart__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vf-networth-chart__marker {
+  stroke: var(--vf-white);
+  stroke-width: 1.5;
+}
+
+.vf-networth-chart__end-label {
+  font-size: 13px;
+}
+
+.vf-networth-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.vf-networth-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+.vf-networth-chart__legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Family recap ------------------------------------------------------------ */
+.vf-recap {
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  text-align: left;
+}
+
+.vf-recap__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+}
+
+.vf-recap__header-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.vf-recap__scenario {
+  color: var(--vf-ink-soft);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.vf-recap__section-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0.9rem 0 0.4rem;
+}
+
+.vf-recap__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+}
+
+.vf-recap__badges {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-recap__empty {
+  color: var(--vf-ink-soft);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+/* Printing the recap: hide everything else on the page, show only the
+ * recap card's content (not its own Close/Print buttons). */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .vf-recap,
+  .vf-recap * {
+    visibility: visible;
+  }
+  .vf-recap {
+    position: absolute;
+    inset: 0;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+    border: none;
+  }
+  .vf-recap__no-print {
+    display: none;
+  }
+  .vf-modal-overlay {
+    position: static;
+    background: none;
+    padding: 0;
+  }
+}
+
+.vf-info-modal__icon {
+  font-size: 2.2rem;
+}
+
+.vf-info-modal__title {
+  font-size: 1.2rem;
+}
+
+.vf-info-modal__body {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+/* Unlocks viewer -------------------------------------------------------- */
+.vf-unlocks {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vf-unlocks__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.vf-unlocks__stats {
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+.vf-unlocks__section-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-top: 0.3rem;
+}
+
+.vf-unlocks__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.6rem;
+}
+
+.vf-unlocks__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.7rem 0.4rem;
+  border-radius: var(--vf-radius-md);
+  border: var(--vf-border-width) solid var(--vf-border);
+  background: var(--vf-cream);
+  text-align: center;
+}
+
+.vf-unlocks__item--button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.vf-unlocks__item--button:disabled {
+  cursor: not-allowed;
+}
+
+.vf-unlocks__item--active {
+  background: var(--vf-yellow);
+}
+
+.vf-unlocks__item--locked {
+  opacity: 0.6;
+}
+
+.vf-unlocks__item-icon {
+  font-size: 1.6rem;
+}
+
+.vf-unlocks__item-hint {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+/* Career Stats modal (see CareerStatsModal.jsx) — reuses .vf-unlocks'
+   card/header/stats styling above, just its own grid of stat tiles. */
+.vf-career-stats__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.6rem;
+}
+
+.vf-career-stats__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.8rem 0.5rem;
+  border-radius: var(--vf-radius-md);
+  border: var(--vf-border-width) solid var(--vf-border);
+  background: var(--vf-cream);
+  text-align: center;
+}
+
+.vf-career-stats__icon {
+  font-size: 1.5rem;
+}
+
+.vf-career-stats__value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--vf-teal-dark);
+}
+
+.vf-career-stats__label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+.vf-modal__icon {
+  font-size: 3rem;
+}
+
+.vf-modal__title {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.vf-modal__flavor {
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+}
+
+.vf-modal__effect {
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.vf-modal__effect--good {
+  color: var(--vf-green-dark);
+}
+
+.vf-modal__effect--bad {
+  color: var(--vf-red-dark);
+}
+
+.vf-modal__why {
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-md);
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--vf-ink);
+  text-align: left;
+}
+
+.vf-modal__why strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--vf-teal-dark);
+}
+
+/* Arena-only: the read-only line shown to every viewer who isn't the
+   fortune-card/exit-offer's own owner — see FortuneCardModal.jsx and
+   BusinessExitOfferModal.jsx's `isMine` prop. Solo/hotseat never renders
+   this (isMine is left undefined there, so the real buttons always show). */
+.vf-modal__waiting {
+  font-style: italic;
+  color: var(--vf-ink-soft);
+  margin: 0;
+}
+
+/* Business exit-offer modal: accept/decline side by side (see
+   BusinessExitOfferModal.jsx) — the only vf-modal so far with two real
+   choices instead of a single "Got it!" continue button. */
+.vf-modal__actions {
+  display: flex;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.vf-modal__actions .vf-btn {
+  flex: 1;
+}
+
+/* Business health coloring (see game/businessUpgrades.js's
+   businessHealthStatus — a business untended for a while starts to
+   atrophy): 'warning' = approaching the neglect threshold, 'declining' =
+   past it and actively losing income each cycle. Applied to the business
+   name in PlayerDetailModal.jsx's business row. */
+.vf-portfolio__business-name--warning {
+  color: var(--vf-yellow-dark, #b8860b);
+  font-weight: 700;
+}
+
+.vf-portfolio__business-name--declining {
+  color: var(--vf-red-dark);
+  font-weight: 700;
+}
+
+.vf-portfolio__business-health-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: var(--vf-radius-sm, 6px);
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.vf-portfolio__business-health-tag--warning {
+  background: var(--vf-yellow);
+  color: #5c4400;
+}
+
+.vf-portfolio__business-health-tag--declining {
+  background: var(--vf-red);
+  color: #fff;
+}
+
+/* Leaderboard modal ------------------------------------------------------ */
+.vf-leaderboard {
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-leaderboard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+
+.vf-leaderboard__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.vf-leaderboard__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.vf-leaderboard__row {
+  display: grid;
+  grid-template-columns: 1.6rem 1.6rem 1fr auto auto auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-white);
+  font-weight: 600;
+  font-size: 0.9rem;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .vf-leaderboard__row {
+    grid-template-columns: 1.6rem 1.6rem 1fr auto auto;
+  }
+
+  /* Least essential column on a cramped screen — everything else stays visible. */
+  .vf-leaderboard__date {
+    display: none;
+  }
+}
+
+.vf-leaderboard__row--highlight {
+  background: var(--vf-yellow);
+}
+
+.vf-leaderboard__snapshot {
+  padding: 0.7rem 0.9rem 0.9rem;
+  margin: -0.15rem 0.2rem 0.35rem;
+  border: 2px dashed var(--vf-border);
+  border-top: none;
+  border-radius: 0 0 var(--vf-radius-md) var(--vf-radius-md);
+  background: var(--vf-cream);
+  animation: vf-fade-in 0.15s ease;
+}
+
+.vf-leaderboard__no-snapshot {
+  padding: 0.6rem 0.9rem;
+  margin: -0.15rem 0.2rem 0.35rem;
+  font-size: 0.82rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-leaderboard__rank {
+  text-align: center;
+  color: var(--vf-ink-soft);
+}
+
+.vf-leaderboard__mode,
+.vf-leaderboard__difficulty,
+.vf-leaderboard__date {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+  white-space: nowrap;
+}
+
+.vf-leaderboard__score {
+  color: var(--vf-teal-dark);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Player portfolio detail modal ------------------------------------------ */
+.vf-portfolio {
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-portfolio__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.vf-portfolio__who {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.25rem;
+}
+
+.vf-portfolio__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.vf-portfolio__bot-tag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-md);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+  font-style: italic;
+}
+
+.vf-portfolio__bot-skill {
+  flex-shrink: 0;
+  font-style: normal;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vf-portfolio__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.vf-portfolio__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+}
+
+.vf-portfolio__summary-stat {
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-md);
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.vf-portfolio__summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.vf-portfolio__summary-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+}
+
+.vf-portfolio__section-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--vf-ink);
+  margin-bottom: 0.4rem;
+}
+
+.vf-portfolio__assets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vf-portfolio__asset-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.15rem 0.8rem;
+  padding: 0.6rem 0.8rem;
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-white);
+}
+
+.vf-portfolio__asset-row--empty {
+  opacity: 0.5;
+}
+
+.vf-portfolio__asset-icon {
+  font-size: 1.4rem;
+  grid-row: span 2;
+}
+
+.vf-portfolio__asset-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.vf-portfolio__asset-detail {
+  font-size: 0.78rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-portfolio__asset-value {
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vf-portfolio__asset-gain {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vf-portfolio__asset-gain--up {
+  color: var(--vf-green-dark);
+}
+
+.vf-portfolio__asset-gain--down {
+  color: var(--vf-red-dark);
+}
+
+.vf-portfolio__businesses {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vf-portfolio__business-card {
+  padding: 0.55rem 0.8rem;
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-white);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.vf-portfolio__business-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.vf-portfolio__business-income {
+  color: var(--vf-green-dark);
+  font-weight: 700;
+}
+
+/* Cash Ledger modal (opened from the portfolio header) ------------------ */
+.vf-ledger {
+  width: 100%;
+  max-width: 480px;
+  max-height: 80vh;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  text-align: left;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-ledger__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vf-ledger__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.vf-ledger__blurb {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--vf-ink-soft);
+}
+
+.vf-ledger__summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.vf-ledger__summary-stat {
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-md);
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.vf-ledger__summary-label {
+  font-size: 0.75rem;
+  color: var(--vf-ink-soft);
+  font-weight: 600;
+}
+
+.vf-ledger__summary-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.vf-ledger__summary-stat--in .vf-ledger__summary-value {
+  color: var(--vf-green-dark);
+}
+
+.vf-ledger__summary-stat--out .vf-ledger__summary-value {
+  color: var(--vf-red-dark, #b02a2a);
+}
+
+.vf-ledger__empty {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--vf-ink-soft);
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.vf-ledger__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.vf-ledger__row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--vf-radius-sm, 6px);
+  font-size: 0.85rem;
+}
+
+.vf-ledger__row--in {
+  background: rgba(46, 160, 67, 0.08);
+}
+
+.vf-ledger__row--out {
+  background: rgba(200, 60, 60, 0.06);
+}
+
+.vf-ledger__row-month {
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.vf-ledger__row-source {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.vf-ledger__row-detail {
+  color: var(--vf-ink-soft);
+  font-weight: 400;
+}
+
+.vf-ledger__row-amount {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vf-ledger__row--in .vf-ledger__row-amount {
+  color: var(--vf-green-dark);
+}
+
+.vf-ledger__row--out .vf-ledger__row-amount {
+  color: var(--vf-red-dark, #b02a2a);
+}
+
+/* Business upgrades (Marketing / Sales / Operations / R&D) ------------ */
+.vf-biz-upgrades {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--vf-border);
+}
+
+.vf-biz-upgrades__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.vf-biz-upgrades__chip {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  background: var(--vf-cream-deep);
+  border-radius: var(--vf-radius-pill);
+  padding: 0.15rem 0.5rem;
+}
+
+.vf-biz-upgrades__chip--active {
+  color: var(--vf-green-dark);
+  background: var(--vf-white);
+  border: 1px solid var(--vf-green);
+}
+
+.vf-biz-upgrades__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.vf-biz-upgrades__btn {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.55rem;
+  min-height: auto;
+}
+
+.vf-portfolio__empty {
+  font-size: 0.85rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+/* Save-to-leaderboard form (game over screen) --------------------------- */
+.vf-save-score {
+  padding: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  background: var(--vf-cream);
+  text-align: left;
+}
+
+.vf-save-score__title {
+  font-weight: 700;
+  text-align: center;
+}
+
+.vf-save-score__hint {
+  font-size: 0.78rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+}
+
+.vf-save-score__success {
+  text-align: center;
+  font-weight: 600;
+  color: var(--vf-green-dark);
+}
+
+.vf-save-score__top20 {
+  text-align: center;
+  font-weight: 700;
+  color: var(--vf-orange-dark);
+  background: var(--vf-yellow);
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  padding: 0.5rem 0.75rem;
+  animation: vf-pop-in 0.25s ease;
+}
+
+/* Game over ------------------------------------------------------------ */
+.vf-gameover {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow: hidden;
+}
+
+.vf-fireworks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.vf-firework-particle {
+  position: absolute;
+  top: var(--oy);
+  left: var(--ox);
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: var(--color);
+  box-shadow: 0 0 6px 1px var(--color);
+  opacity: 0;
+  animation: vf-firework-burst var(--dur) ease-out var(--delay) forwards;
+}
+
+@keyframes vf-firework-burst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.35);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-fireworks {
+    display: none;
+  }
+}
+
+.vf-gameover__inner {
+  width: 100%;
+  max-width: 560px;
+  padding: 2rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.vf-gameover__trophy {
+  font-size: 3.5rem;
+}
+
+.vf-gameover__winner {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+}
+
+.vf-gameover__scenario-pill {
+  display: flex;
+  justify-content: center;
+}
+
+.vf-gameover__objective {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--vf-ink-soft);
+  margin: 0 0.5rem;
+}
+
+.vf-gameover__unlock {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--vf-radius-md);
+  background: var(--vf-yellow);
+  border: var(--vf-border-width) solid var(--vf-border);
+}
+
+.vf-gameover__chart-card {
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.vf-gameover__insights {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.vf-gameover__insight {
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--vf-ink-soft);
+}
+
+.vf-gameover__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.vf-gameover__downloads {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.vf-gameover__downloads-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  margin-bottom: 0.4rem;
+}
+
+.vf-gameover__downloads-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* The "Email Recap" input + send button (see GameOverScreen.jsx's
+   handleEmailRecap) — a small inline form rather than its own modal, since
+   it's just one field. Ported from VentureFlow's src/styles/game.css. */
+.vf-gameover__email-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.vf-gameover__email-input {
+  flex: 1 1 220px;
+  max-width: 280px;
+}
+
+.vf-gameover__venturemaker {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 2px dashed var(--vf-border);
+}
+
+.vf-standings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.vf-standing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--vf-radius-md);
+  border: 2px solid var(--vf-border);
+  background: var(--vf-white);
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vf-standing-row--winner {
+  background: var(--vf-yellow);
+}
+
+.vf-standing-row__rank {
+  width: 2rem;
+  text-align: center;
+}
+
+.vf-gameover__standings-hint {
+  font-size: 0.75rem;
+  color: var(--vf-ink-soft);
+  font-weight: 500;
+  text-align: center;
+  margin-top: -0.15rem;
+}
+
+/* Piggy Bank interest (asset shop) --------------------------------------- */
+.vf-asset-card__interest {
+  font-size: 0.78rem;
+  color: var(--vf-teal-dark);
+  font-weight: 600;
+}
+
+.vf-asset-card__interest--bonus {
+  color: var(--vf-orange-dark);
+}
+
+/* Marketing campaign allowance (portfolio business card) ------------------ */
+.vf-biz-upgrades__chip--tapped {
+  color: var(--vf-red-dark);
+  background: var(--vf-white);
+  border: 1px solid var(--vf-red);
+}
+
+.vf-biz-upgrades__note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--vf-red-dark);
+}
+
+.vf-portfolio__section-hint {
+  font-weight: 500;
+  font-size: 0.78rem;
+  color: var(--vf-ink-soft);
+}
+
+/* Startup launch celebration --------------------------------------------- */
+.vf-launch {
+  position: relative; /* anchors the absolutely-positioned <Fireworks /> */
+  overflow: hidden;
+  width: 100%;
+  max-width: 440px;
+  padding: 1.5rem;
+  background: var(--vf-white);
+  text-align: center;
+  animation: vf-pop-in 0.2s ease;
+}
+
+.vf-launch__inner {
+  position: relative;
+  z-index: 2; /* above the fireworks layer */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.vf-launch__eyebrow {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--vf-ink-soft);
+}
+
+/* The "storefront": hero emoji flanked by two props on a gradient chosen to
+   suit the business (see game/businessArt.js). */
+.vf-launch__art {
+  width: 100%;
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  background: linear-gradient(160deg, var(--art-from), var(--art-to));
+  box-shadow: var(--vf-shadow-sm);
+  padding: 1.1rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.vf-launch__art-hero {
+  font-size: 3.6rem;
+  line-height: 1;
+  filter: drop-shadow(0 3px 0 rgba(36, 38, 46, 0.25));
+  animation: vf-launch-pop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) both;
+}
+
+.vf-launch__art-prop {
+  font-size: 1.6rem;
+  line-height: 1;
+  opacity: 0.85;
+  animation: vf-launch-drift 2.4s ease-in-out infinite alternate;
+}
+
+.vf-launch__art-prop--right {
+  animation-delay: 0.6s;
+}
+
+.vf-launch__name {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--vf-teal-dark);
+}
+
+.vf-launch__income {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  background: var(--vf-cream-deep);
+  border-radius: var(--vf-radius-md);
+  padding: 0.6rem 1rem;
+}
+
+.vf-launch__income-value {
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--vf-green-dark);
+  line-height: 1;
+}
+
+.vf-launch__income-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+.vf-launch__why {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--vf-ink-soft);
+}
+
+@keyframes vf-launch-pop {
+  0% {
+    transform: scale(0.2) rotate(-18deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes vf-launch-drift {
+  from {
+    transform: translateY(0) rotate(-6deg);
+  }
+  to {
+    transform: translateY(-7px) rotate(6deg);
+  }
+}
+
+/* Motion-sensitive players get the layout without the movement — the
+   fireworks already opt out via the existing .vf-fireworks rule. */
+@media (prefers-reduced-motion: reduce) {
+  .vf-launch__art-hero,
+  .vf-launch__art-prop {
+    animation: none;
+  }
+}
+
+/* Rulebook ---------------------------------------------------------------- */
+.vf-rulebook {
+  width: 100%;
+  max-width: 620px;
+  max-height: 86vh;
+  padding: 1.25rem;
+  background: var(--vf-white);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: left;
+  animation: vf-pop-in 0.18s ease;
+}
+
+.vf-rulebook__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.vf-rulebook__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.vf-rulebook__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-bottom: 0.3rem;
+  flex-shrink: 0;
+}
+
+.vf-rulebook__tab {
+  appearance: none;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  background: var(--vf-cream-deep);
+  border: 2px solid transparent;
+  border-radius: var(--vf-radius-pill);
+  padding: 0.3rem 0.7rem;
+}
+
+.vf-rulebook__tab--active {
+  color: var(--vf-ink);
+  background: var(--vf-white);
+  border-color: var(--vf-border);
+}
+
+.vf-rulebook__body {
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+.vf-rulebook__section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+}
+
+.vf-rulebook__p {
+  margin: 0 0 0.7rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--vf-ink);
+}
+
+.vf-rulebook__list {
+  margin: 0 0 0.7rem;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.vf-rulebook__list li {
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.vf-rulebook__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.vf-rulebook__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr;
+  gap: 0.6rem;
+  background: var(--vf-cream);
+  border-radius: var(--vf-radius-sm);
+  padding: 0.5rem 0.65rem;
+}
+
+.vf-rulebook__row-label {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.vf-rulebook__row-detail {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--vf-ink-soft);
+}
+
+@media (max-width: 520px) {
+  .vf-rulebook__row {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
+
+/* Play-speed slider ------------------------------------------------------- */
+.vf-speed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  background: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  box-shadow: var(--vf-shadow-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.vf-speed__icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.vf-speed__range {
+  width: 92px;
+  accent-color: var(--vf-teal);
+  cursor: pointer;
+}
+
+.vf-speed__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--vf-ink-soft);
+  min-width: 4.6rem;
+}
+
+/* On a narrow screen the header is already crowded — the icon and the slider
+   still say everything the label does. */
+@media (max-width: 720px) {
+  .vf-speed--compact .vf-speed__name {
+    display: none;
+  }
+  .vf-speed--compact .vf-speed__range {
+    width: 66px;
+  }
+}
+
+/* Travelling turn spotlight ----------------------------------------------- */
+.vf-players {
+  position: relative; /* the spotlight below is positioned against this */
+}
+
+.vf-spotlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 0; /* under the cards' own content, over the board background */
+  border-radius: var(--vf-radius-lg);
+  background: radial-gradient(circle at 50% 40%, rgba(31, 169, 142, 0.22), rgba(31, 169, 142, 0) 72%);
+  /* Kept fairly tight: a wide outer glow spills past the board's own border
+     on narrow layouts, where the players grid sits close to the card edge. */
+  box-shadow: 0 0 0 4px rgba(31, 169, 142, 0.55), 0 0 16px 3px rgba(31, 169, 142, 0.28);
+  animation: vf-spotlight-pulse 2.2s ease-in-out infinite;
+}
+
+/* Only travel once it has been placed — see PlayerPanel's placedRef. */
+.vf-spotlight--travelling {
+  transition:
+    transform var(--vf-spotlight-ms, 550ms) cubic-bezier(0.34, 1.15, 0.5, 1),
+    width var(--vf-spotlight-ms, 550ms) ease,
+    height var(--vf-spotlight-ms, 550ms) ease;
+}
+
+@keyframes vf-spotlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(31, 169, 142, 0.55), 0 0 14px 2px rgba(31, 169, 142, 0.24);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(31, 169, 142, 0.72), 0 0 22px 6px rgba(31, 169, 142, 0.36);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-spotlight {
+    animation: none;
+  }
+  .vf-spotlight--travelling {
+    transition: none;
+  }
+}
+
+/* The active card already had its own teal ring; with the spotlight doing
+   that job now, the card keeps only the warm background so the two don't
+   fight each other visually. */
+.vf-player-card--active {
+  box-shadow: var(--vf-shadow);
+}
+
+/* Cards sit above the spotlight glow so their text stays crisp. */
+.vf-player-card {
+  position: relative;
+  z-index: 1;
+}
+
+/* Marketing upkeep campaign ------------------------------------------------ */
+.vf-biz-upgrades__btn-tag {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--vf-teal-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.vf-biz-upgrades__note--upkeep {
+  color: var(--vf-ink-soft);
+}
+
+/* Turn timer --------------------------------------------------------------- */
+.vf-turn-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem 0.25rem 0.7rem;
+  background: var(--vf-white);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-pill);
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-turn-timer__clock {
+  font-weight: 700;
+  font-size: 0.95rem;
+  min-width: 3.6rem;
+  text-align: center;
+  /* Tabular figures stop the pill twitching as the digits change. */
+  font-variant-numeric: tabular-nums;
+}
+
+.vf-turn-timer--urgent {
+  border-color: var(--vf-red-dark);
+  animation: vf-timer-pulse 1s ease-in-out infinite;
+}
+
+.vf-turn-timer--urgent .vf-turn-timer__clock {
+  color: var(--vf-red-dark);
+}
+
+.vf-turn-timer__extend {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  padding: 0.2rem 0.55rem;
+  min-height: auto;
+  font-size: 0.78rem;
+}
+
+.vf-turn-timer__count {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+}
+
+@keyframes vf-timer-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-turn-timer--urgent {
+    animation: none;
+  }
+}
+
+/* Fortune-card shocks on a player card -------------------------------------- */
+.vf-player-card__shocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.vf-shock-chip {
+  font-size: 0.66rem;
+  font-weight: 700;
+  border-radius: var(--vf-radius-pill);
+  padding: 0.15rem 0.5rem;
+  background: var(--vf-white);
+  border: 1px solid var(--vf-border);
+}
+
+.vf-shock-chip--bad {
+  color: var(--vf-red-dark);
+  border-color: var(--vf-red);
+}
+
+.vf-shock-chip--good {
+  color: var(--vf-green-dark);
+  border-color: var(--vf-green);
+}
+
+/* Weather's effect on business revenue -------------------------------------- */
+.vf-weather-card__business {
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.vf-weather-card__business--up {
+  color: var(--vf-green-dark);
+}
+
+.vf-weather-card__business--down {
+  color: var(--vf-red-dark);
+}
+
+/* Global leaderboard note ---------------------------------------------------- */
+.vf-leaderboard__note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--vf-ink-soft);
+}
+
+/* Global-publish status on the game-over screen ------------------------------ */
+.vf-save-score__global {
+  margin: 0.4rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--vf-ink-soft);
+}
+
+/* Buy/Sell button press feedback --------------------------------------------- */
+.vf-btn--press {
+  position: relative;
+  /* The ring animates outside the button's box. */
+  overflow: visible;
+}
+
+/* Held down — including throughout a press-and-hold repeat — the button sits
+   into its own shadow, so the whole burst reads as one continuous press. */
+.vf-btn--press:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(36, 38, 46, 0.9);
+}
+
+/* One ring per press, expanding out from the border and fading. Remounted on
+   every press (see AssetShop's key) so rapid repeats each get their own. */
+.vf-btn__ring {
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 3px solid currentColor;
+  color: var(--vf-white);
+  pointer-events: none;
+  opacity: 0;
+  animation: vf-btn-ring 0.34s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+@keyframes vf-btn-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vf-btn__ring {
+    animation: none;
+  }
+  .vf-btn--press:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Same-turn resale warning --------------------------------------------------- */
+.vf-asset-card__resale {
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--vf-orange-dark);
+}
+
+/* Per-asset price/cashflow history (AssetHistoryModal.jsx) ------------------ */
+.vf-asset-card__history-btn {
+  align-self: flex-start;
+  margin-top: -0.2rem;
+}
+
+.vf-asset-history {
+  width: 100%;
+  max-width: 520px;
+  max-height: 86vh;
+  overflow-y: auto;
+  padding: 1.25rem;
+  background: var(--vf-white);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: left;
+}
+
+.vf-asset-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.vf-asset-history__title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.vf-asset-history__tagline {
+  margin: -0.3rem 0 0.2rem;
+  font-size: 0.82rem;
+  color: var(--vf-ink-soft);
+}
+
+.vf-asset-history__empty {
+  font-size: 0.86rem;
+  color: var(--vf-ink-soft);
+  text-align: center;
+  padding: 1rem 0;
+}
+
+/* Small single-series line charts shared by both metrics in the modal —
+   see the dataviz skill: price and cashflow are different scales, so each
+   gets its OWN chart (one axis apiece) rather than one dual-axis chart. */
+.vf-mini-chart {
+  width: 100%;
+}
+
+.vf-mini-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.vf-mini-chart__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--vf-ink-soft);
+  margin-bottom: 0.15rem;
+}
+
+.vf-mini-chart__title-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.vf-mini-chart__grid {
+  stroke: var(--vf-cream-deep);
+  stroke-width: 1;
+}
+
+.vf-mini-chart__axis {
+  stroke: var(--vf-ink-soft);
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.vf-mini-chart__axis-label {
+  font-size: 9px;
+  fill: var(--vf-ink-soft);
+  font-family: 'Fredoka', system-ui, sans-serif;
+}
+
+.vf-mini-chart__line {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vf-mini-chart__marker {
+  stroke: var(--vf-white);
+  stroke-width: 1.5;
+}
+
+/* End-of-game recap (game-ui/components/GameEndingRecap.jsx) ------------- */
+/* The 'gameEnding' screen — replaces the old plain countdown overlay with a
+   browsable dashboard: pick any player, see their fortune cards and three
+   per-metric timelines. Noticeably wider than the other modals (.vf-modal
+   at 420px, .vf-rulebook at 620px) since it's carrying charts AND a card
+   list side by side on anything wider than a tablet. */
+.vf-ending-recap {
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+  background: var(--vf-white);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.vf-ending-recap__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.vf-ending-recap__title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.vf-ending-recap__title h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.vf-ending-recap__icon {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.vf-ending-recap__hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.84rem;
+  color: var(--vf-ink-soft);
+}
+
+.vf-ending-recap__players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.vf-ending-recap__player-chip {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--vf-ink);
+  background: var(--vf-cream);
+  border: 2px solid transparent;
+  border-radius: var(--vf-radius-pill);
+  padding: 0.4rem 0.85rem;
+}
+
+.vf-ending-recap__player-chip--active {
+  background: var(--vf-white);
+  border-color: var(--vf-border);
+  box-shadow: var(--vf-shadow-sm);
+}
+
+.vf-ending-recap__body {
+  display: grid;
+  grid-template-columns: minmax(220px, 340px) 1fr;
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.vf-ending-recap__charts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.vf-ending-recap__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.vf-ending-recap__cards-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.vf-ending-recap__cards-empty {
+  font-size: 0.86rem;
+  color: var(--vf-ink-soft);
+}
+
+.vf-ending-recap__card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+@media (max-width: 720px) {
+  .vf-ending-recap__body {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Individual fortune-card rows inside the recap — a compact cousin of
+   FortuneCardModal.jsx's full-screen pop-in, since this list can run to a
+   couple dozen cards across a whole game. */
+.vf-ending-card {
+  border: 2px solid var(--vf-border);
+  border-radius: var(--vf-radius-sm);
+  padding: 0.6rem 0.75rem;
+  background: var(--vf-cream);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.vf-ending-card--good {
+  border-color: var(--vf-green-dark);
+}
+
+.vf-ending-card--bad {
+  border-color: var(--vf-red-dark);
+}
+
+.vf-ending-card__top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vf-ending-card__icon {
+  font-size: 1.3rem;
+}
+
+.vf-ending-card__title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.vf-ending-card__month {
+  font-size: 0.75rem;
+  color: var(--vf-ink-soft);
+}
+
+.vf-ending-card__flavor {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--vf-ink-soft);
+}
+
+.vf-ending-card__effect {
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.vf-ending-card__effect--good {
+  color: var(--vf-green-dark);
+}
+
+.vf-ending-card__effect--bad {
+  color: var(--vf-red-dark);
+}
+
+.vf-ending-card__why {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--vf-ink-soft);
+}
+
+/* ============================================================================
+   Ported from VentureFlow's src/styles/game.css (Teach Me mode + business
+   naming) — see vf-source-snapshot-2026-08-23.md. Verbatim, no Arena-specific
+   changes needed; these are pure additive classes.
+   ============================================================================ */
+
+/* Wraps a button + its optional LessonTip (see ActionBar.jsx) as one flex
+   item, so adding the "Teach Me" tip never changes the two buttons' own
+   sizing relative to each other. */
+.vf-action-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 160px;
+}
+
+/* "Teach Me" on-demand lesson tooltips (see LessonTip.jsx) --------------- */
+.vf-lesson-tip {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.vf-lesson-tip__toggle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--vf-border);
+  background: var(--vf-yellow);
+  color: var(--vf-ink);
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.vf-lesson-tip__toggle--open {
+  background: var(--vf-ink);
+  color: var(--vf-white);
+}
+
+.vf-lesson-tip__bubble {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 0.35rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: max-content;
+  max-width: min(260px, 80vw);
+  padding: 0.65rem 0.8rem;
+  background: var(--vf-cream);
+  border: var(--vf-border-width) solid var(--vf-border);
+  border-radius: var(--vf-radius-md);
+  box-shadow: var(--vf-shadow-sm);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--vf-ink);
+  animation: vf-pop-in 0.12s ease;
+}
+
+.vf-lesson-tip__bubble strong {
+  color: var(--vf-teal-dark);
+}
+
+/* For a tip that lives near the right edge of its container (e.g. the
+   weather badge in the board's top-right header row) — anchors the bubble
+   to the right so it opens leftward instead of overflowing off-screen. */
+.vf-lesson-tip--right .vf-lesson-tip__bubble {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+/* Start-business naming step (see StartBusinessModal.jsx) --------------- */
+.vf-start-business-modal {
+  max-width: 460px;
+}
+
+.vf-start-business-modal__preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 1rem;
+  border-radius: var(--vf-radius-lg);
+  border: var(--vf-border-width) solid var(--vf-border);
+}
+
+.vf-start-business-modal__preview-hero {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.vf-start-business-modal__preview-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--vf-ink);
+}
+
+.vf-start-business-modal__preview-props {
+  display: flex;
+  gap: 0.4rem;
+  font-size: 1.1rem;
+}
+
+.vf-start-business-modal__suggestions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.vf-start-business-modal__suggestion {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: var(--vf-radius-md);
+  border: 2px solid var(--vf-border);
+  background: var(--vf-white);
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.vf-start-business-modal__suggestion:hover {
+  border-color: var(--vf-teal);
+}
+
+.vf-start-business-modal__suggestion--picked {
+  border-color: var(--vf-teal-dark);
+  background: var(--vf-teal-light, var(--vf-cream));
+}
+
+.vf-start-business-modal__suggestion-hero {
+  font-size: 1.3rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.vf-start-business-modal__suggestion-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vf-start-business-modal__custom-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--vf-ink-soft);
+  text-align: left;
+  margin-top: 0.2rem;
+}
+
+.vf-start-business-modal__custom-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--vf-radius-md);
+  border: 2px solid var(--vf-border);
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: var(--vf-ink);
+  background: var(--vf-white);
+}
+
+.vf-start-business-modal__custom-input:focus {
+  outline: none;
+  border-color: var(--vf-teal);
+  box-shadow: 0 0 0 3px var(--vf-teal-light, var(--vf-teal));
+}

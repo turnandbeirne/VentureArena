@@ -56,6 +56,14 @@ function createGenerator(seed) {
   }
 
   return {
+    /** The generator's entire state — one uint32 — so a run can be saved and
+     * resumed exactly where it left off. See snapshotRng/restoreRng below. */
+    getState() {
+      return state >>> 0;
+    },
+    setState(next) {
+      state = (Math.floor(next) || 0) >>> 0;
+    },
     reseed(newSeed) {
       state = (Math.floor(newSeed) || 0) >>> 0;
       // Run forward once so a seed of 0 (or any value that would otherwise
@@ -103,6 +111,35 @@ export function seedRng(seed) {
   const base = (Math.floor(seed) || 0) >>> 0;
   defaultGen.reseed(base);
   envGen.reseed((base ^ 0x9e3779b9) >>> 0);
+}
+
+/**
+ * Both streams' cursors, as a plain serializable object.
+ *
+ * Saved alongside the game (see game/persistence.js) so a run RESUMES the
+ * same sequence it was on rather than jumping to a fresh entropy-seeded one.
+ * That matters most for the Daily Challenge: `seedRng()` only runs at
+ * START_GAME, so before this, anyone who reloaded mid-run silently continued
+ * on a different weather/card timeline from everyone else while still saving
+ * into the same day's leaderboard segment — the one thing that mode promises
+ * not to happen.
+ *
+ * It's also the first step toward the reducer being a pure function of
+ * (state, action), which online multiplayer needs: the randomness is no
+ * longer invisible module state that nothing can see or reproduce.
+ */
+export function snapshotRng() {
+  return { def: defaultGen.getState(), env: envGen.getState() };
+}
+
+/** Restore both cursors from a snapshotRng() result. Ignores anything
+ * malformed (an older save, a hand-edited one) and leaves the streams as
+ * they are, which is exactly the pre-existing behaviour. */
+export function restoreRng(snapshot) {
+  if (!snapshot || typeof snapshot.def !== 'number' || typeof snapshot.env !== 'number') return false;
+  defaultGen.setState(snapshot.def);
+  envGen.setState(snapshot.env);
+  return true;
 }
 
 export function randomInt(min, max) {
