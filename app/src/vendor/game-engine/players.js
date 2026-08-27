@@ -100,17 +100,6 @@ export function createPlayer({
     turnComplete: false,
     scenarioGoalMonth: null, // month this player hit the scenario's objective, if any — see game/scenarios.js
     netWorthHistory: [], // [{ month, netWorth }] — one snapshot per completed month, see game/turnEngine.js
-    // Same one-snapshot-per-completed-month convention as netWorthHistory
-    // above, for the end-of-game recap's per-player timelines (see
-    // game-ui/components/GameEndingRecap.jsx) — appended in turnEngine.js's
-    // finishMonthEnd right alongside the payday/fortune-card steps that
-    // already compute these numbers, so there's no second source of truth.
-    passiveIncomeHistory: [], // [{ month, passiveIncome }] — passiveIncomeBreakdown's total (business + asset income + card bonus), NOT allowance
-    totalIncomeHistory: [], // [{ month, income }] — that month's full Payday total (allowance + passiveIncomeHistory's figure)
-    // Every fortune card this player has EVER drawn, in order — unlike
-    // state.fortuneRecap (cleared every month once its cards are viewed),
-    // this is permanent, for the same end-of-game recap.
-    fortuneCardHistory: [], // [{ month, deckId, card, description }]
     // Every cash movement this player has ever had, day 1 through game end
     // — [{ month, type: 'in'|'out', amount, source, detail? }]. Appended to
     // (never rewritten) at every site that actually changes `cash`: buying/

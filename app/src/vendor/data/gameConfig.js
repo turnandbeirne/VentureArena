@@ -195,6 +195,14 @@ export const FINANCIAL_LESSONS = {
 // ---------------------------------------------------------------------------
 export const GAME_LENGTH_MONTHS = 24;
 
+// How long the 'gameEnding' pause lasts — the beat between the final
+// month's fortune-card recap finishing and the Game Over screen actually
+// appearing (see game-engine/turnEngine.js's acknowledgeFortuneCard and
+// ArenaGameBoard.jsx's auto-advance timer). Long enough to read as a
+// deliberate "that's a wrap" moment, short enough not to feel like a stall;
+// a "See Final Results Now" button always skips the wait.
+export const GAME_ENDING_COUNTDOWN_SECONDS = 5;
+
 // These reflect the "Middle of the Pack" difficulty and exist as a fallback
 // default — e.g. for a game saved before difficulty presets existed. Every
 // actual new game reads its numbers from the chosen DIFFICULTIES entry

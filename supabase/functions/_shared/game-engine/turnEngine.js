@@ -353,13 +353,6 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
       // `expiresMonth` is the last month a modifier still applies to.
       allowanceMods: (p.allowanceMods || []).filter((m) => m.expiresMonth > month),
       ledger: [...(p.ledger || []), { month, type: 'in', amount: income, source: 'Payday', detail: parts.join(' + ') }],
-      // Per-player timelines for the end-of-game recap (see
-      // game-ui/components/GameEndingRecap.jsx) — same one-point-per-completed-month
-      // convention as netWorthHistory below, captured right here since this
-      // is where these two numbers already get computed for the actual cash
-      // credit, so there's no second calculation to keep in sync.
-      passiveIncomeHistory: [...(p.passiveIncomeHistory || []), { month, passiveIncome: breakdown.total }],
-      totalIncomeHistory: [...(p.totalIncomeHistory || []), { month, income }],
     };
   });
   logEntries.push({ icon: '💰', message: `Payday! Everyone collected their allowance and passive income.`, kind: 'payday' });
@@ -378,18 +371,11 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
     // type(s) directly — catches every current and future cash-moving
     // effect type without this file needing to know its name.
     const cashDelta = applied.player.cash - player.cash;
-    const withCardHistory = {
-      ...applied.player,
-      fortuneCardHistory: [
-        ...(applied.player.fortuneCardHistory || []),
-        { month, deckId, card, description: applied.description },
-      ],
-    };
     players[i] = cashDelta !== 0
       ? {
-          ...withCardHistory,
+          ...applied.player,
           ledger: [
-            ...(withCardHistory.ledger || []),
+            ...(applied.player.ledger || []),
             {
               month,
               type: cashDelta > 0 ? 'in' : 'out',
@@ -399,7 +385,7 @@ function finishMonthEnd(state, players, logEntries, month, scenario, leaderBefor
             },
           ],
         }
-      : withCardHistory;
+      : applied.player;
     prices = applied.prices;
     logEntries.push({
       icon: card.icon,
@@ -640,15 +626,12 @@ export function acknowledgeFortuneCard(state) {
 }
 
 /**
- * Ends the 'gameEnding' recap (game-ui/components/GameEndingRecap.jsx — the
- * browsable "that's a wrap" dashboard: every fortune card each player drew,
- * plus clickable per-player net worth / passive income / earnings
- * timelines) and actually shows the Game Over screen. Client-submittable
- * (resolve-move/index.ts's allowlist) — safe for every connected client to
- * submit whenever THEY click "Continue to Leaderboard" (there's no timer to
- * race), because this is a pure no-op once status is already 'gameover'
- * (unlike ACK_FORTUNE_CARD, which is why THAT one still needs the
- * elected-single-client convention in ArenaGameBoard.jsx).
+ * Ends the 'gameEnding' pause and actually shows the Game Over screen.
+ * Client-submittable (resolve-move/index.ts's allowlist) — safe for every
+ * connected client to submit once their own countdown reaches zero,
+ * because this is a pure no-op once status is already 'gameover' (unlike
+ * ACK_FORTUNE_CARD, which is why THAT one still needs the elected-single-
+ * client convention in ArenaGameBoard.jsx).
  */
 export function finalizeGameOver(state) {
   if (state.status !== 'gameEnding') return state;

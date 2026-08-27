@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import '../../vendor/game-ui/styles/game.css';
-import { getDifficulty, ASSETS } from '../../vendor/data/gameConfig';
+import { getDifficulty, ASSETS, GAME_ENDING_COUNTDOWN_SECONDS } from '../../vendor/data/gameConfig';
 import { turnOrdinal, currentTurnTally } from '../../vendor/game-engine/turnClock';
 import { totalUnitsOwned } from '../../vendor/game-engine/players';
 import { playSound } from '../../vendor/game-ui/audio/soundEngine';
@@ -31,7 +31,6 @@ import PlayerDetailModal from '../../vendor/game-ui/components/PlayerDetailModal
 import GameOverScreen from '../../vendor/game-ui/components/GameOverScreen';
 import StatsHUD from '../../vendor/game-ui/components/StatsHUD';
 import AssetHistoryModal from '../../vendor/game-ui/components/AssetHistoryModal';
-import GameEndingRecap from '../../vendor/game-ui/components/GameEndingRecap';
 import { useOnlineGame } from './useOnlineGame';
 
 /**
@@ -65,14 +64,11 @@ import { useOnlineGame } from './useOnlineGame';
  *  - StartupLaunchModal only ever renders for the launching player, and its
  *    dismissal is tracked locally (by businessId) rather than sent to the
  *    server — see useOnlineGame's ackStartupLaunch comment for why.
- *  - The final month's 'gameEnding' screen (the browsable recap dashboard —
- *    see game-ui/components/GameEndingRecap.jsx and game-engine/
- *    turnEngine.js) has no auto-advance at all: every connected client
- *    renders its own copy of the recap and browses at its own pace, and
- *    whichever client clicks "Continue to Leaderboard" first submits
- *    FINALIZE_GAME_OVER for the whole table. Safe with no elected-client
- *    rule because it's a pure no-op past the first successful call, unlike
- *    ACK_FORTUNE_CARD.
+ *  - The final month's 'gameEnding' pause (a short countdown before the
+ *    Game Over screen — see game-engine/turnEngine.js) auto-advances from
+ *    EVERY connected client independently, not just the elected one: unlike
+ *    ACK_FORTUNE_CARD, FINALIZE_GAME_OVER is a pure no-op past the first
+ *    successful call, so there's no over-advancing risk to guard against.
  *  - "🗺️ View Game Board" on the Game Over screen flips a local
  *    showBoardAfterGameOver flag to show this same board read-only instead
  *    of early-returning GameOverScreen; "← Back to Recap" flips it back.
@@ -105,6 +101,11 @@ export default function ArenaGameBoard({ room, gameState, mySeatIndex, session, 
   // "🗺️ View Game Board" on the Game Over screen flips this on to show the
   // final board (read-only) instead of the leaderboard/recap screen.
   const [showBoardAfterGameOver, setShowBoardAfterGameOver] = useState(false);
+  // Live countdown shown during status 'gameEnding' — purely cosmetic, same
+  // as standalone's GameBoard.jsx; the actual advance is driven by the
+  // effect below (and mirrored by every other connected client's own copy
+  // of this same effect).
+  const [gameEndingSecondsLeft, setGameEndingSecondsLeft] = useState(GAME_ENDING_COUNTDOWN_SECONDS);
 
   const myPlayer = mySeatIndex != null ? players[mySeatIndex] : null;
   const myPlayerId = myPlayer?.id ?? null;
@@ -163,13 +164,25 @@ export default function ArenaGameBoard({ room, gameState, mySeatIndex, session, 
     return () => clearTimeout(t);
   }, [game.error, game.clearError]);
 
-  // The final month's "that's a wrap" recap (GameEndingRecap, rendered
-  // below) has no auto-advance timer — see this file's top comment. Every
-  // connected client submits FINALIZE_GAME_OVER whenever THEY click
-  // "Continue to Leaderboard"; that's safe without an elected-client rule
-  // because finalizeGameOver() is a no-op once status is already
-  // 'gameover', so a race between clients just means the first submission
-  // wins and the rest quietly no-op.
+  // The final month's "that's a wrap" pause. Every connected client runs
+  // this same effect independently and submits FINALIZE_GAME_OVER once its
+  // own countdown reaches zero — see this file's top comment for why that's
+  // safe without an elected-client rule (finalizeGameOver() is a no-op once
+  // status is already 'gameover', so a race between clients just means the
+  // first submission wins and the rest quietly no-op).
+  useEffect(() => {
+    if (status !== 'gameEnding') return;
+    setGameEndingSecondsLeft(GAME_ENDING_COUNTDOWN_SECONDS);
+    const tick = setInterval(() => {
+      setGameEndingSecondsLeft((s) => Math.max(0, s - 1));
+    }, 1000);
+    const advance = setTimeout(() => game.finalizeGameOver(), GAME_ENDING_COUNTDOWN_SECONDS * 1000);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(advance);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   if (status === 'gameover' && !showBoardAfterGameOver) {
     return (
@@ -306,7 +319,7 @@ export default function ArenaGameBoard({ room, gameState, mySeatIndex, session, 
               {readOnly
                 ? "🏁 Final game board — here's how everything ended up"
                 : status === 'gameEnding'
-                ? "🏁 That's a wrap! Browse the recap, then head to the leaderboard."
+                ? "🏁 That's the final month wrapped up — tallying the results..."
                 : status === 'exitOffer'
                 ? `💼 ${exitOfferPlayer?.name || 'Someone'} has a buyout offer to decide on...`
                 : status === 'monthRecap'
@@ -433,19 +446,23 @@ export default function ArenaGameBoard({ room, gameState, mySeatIndex, session, 
         />
       )}
 
-      {/* The full end-of-game recap — every fortune card each player drew
-          all game, plus clickable per-player net worth / passive cash flow
-          / earnings timelines. See game-engine/turnEngine.js's
-          acknowledgeFortuneCard (sets this status instead of jumping
-          straight to 'gameover') and finalizeGameOver (what "Continue to
-          Leaderboard" submits). No auto-advance — every connected client
-          browses its own copy at its own pace, see this file's top comment. */}
+      {/* The pause between the final month's fortune-card recap and the
+          actual Game Over screen — see game-engine/turnEngine.js's
+          acknowledgeFortuneCard and this file's own gameEnding effect above.
+          Not dismissable by clicking outside — this is a beat to let, not a
+          decision to make. */}
       {status === 'gameEnding' && (
-        <GameEndingRecap
-          players={players}
-          defaultPlayerId={myPlayerId}
-          onContinue={() => game.finalizeGameOver()}
-        />
+        <div className="vf-modal-overlay">
+          <div className="vf-card vf-gameending">
+            <div className="vf-gameending__icon">🏁</div>
+            <h2>That's a wrap!</h2>
+            <p className="vf-gameending__hint">The final month is done — tallying up the results...</p>
+            <div className="vf-gameending__countdown">{gameEndingSecondsLeft}</div>
+            <button type="button" className="vf-btn vf-btn--go" onClick={() => game.finalizeGameOver()}>
+              See Final Results Now
+            </button>
+          </div>
+        </div>
       )}
 
       {game.error && <div className="vf-toast">{game.error}</div>}
