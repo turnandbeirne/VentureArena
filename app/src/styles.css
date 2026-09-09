@@ -469,3 +469,166 @@ body {
 .arena-standings {
   padding-left: 20px;
 }
+
+/* ====================================================================== */
+/* Venture Arena layer — app shell, tabs, home rhythms, people, records    */
+/* ====================================================================== */
+:root {
+  --va-ink: #16203a;
+  --va-felt: #1f6a4b;
+  --va-felt-soft: #e3efe8;
+  --va-gold: #c9962b;
+  --va-gold-soft: #f6ebd2;
+  --va-line: #e2e1d8;
+  --va-muted: #6e7a72;
+}
+
+.va-app { min-height: 100vh; padding-bottom: 76px; }
+.va-app.in-room { padding-bottom: 0; }
+.va-main { max-width: 900px; margin: 0 auto; }
+.arena-brand.compact { margin-top: 14px; }
+.arena-brand.compact .arena-brand-name { font-size: 1.25rem; }
+.arena-page { padding: 12px 20px 24px; }
+.va-eyebrow { font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--va-muted); margin: 0 0 4px; font-weight: 600; }
+.va-subhead { margin: 20px 0 4px; font-size: 1.05rem; }
+.va-notice { background: var(--va-gold-soft); border-left: 4px solid var(--va-gold); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 0 0 14px; font-size: 0.93rem; }
+.va-toast { position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%); background: var(--va-ink); color: #fff; padding: 10px 16px; border-radius: 999px; font-size: 0.9rem; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+.va-link-button { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* Navigation */
+.va-nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-around; background: #fff; border-top: 1px solid var(--va-line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); z-index: 40; }
+.va-nav-item { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; padding: 6px 4px; font: inherit; font-size: 0.7rem; color: var(--va-muted); cursor: pointer; border-radius: 10px; min-height: 44px; }
+.va-nav-item.active { color: var(--va-felt); font-weight: 700; }
+.va-nav-item:focus-visible { outline: 2px solid var(--va-gold); }
+.va-nav-icon { font-size: 1.3rem; line-height: 1; }
+.va-nav-badge { position: absolute; top: 2px; right: calc(50% - 22px); background: #b24a2f; color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 18px; height: 18px; border-radius: 999px; display: grid; place-items: center; padding: 0 5px; }
+@media (min-width: 720px) {
+  .va-app { padding-bottom: 24px; }
+  .va-nav { position: sticky; top: 0; bottom: auto; max-width: 900px; margin: 12px auto 0; border: 1px solid var(--va-line); border-radius: 12px; justify-content: flex-start; gap: 4px; padding: 6px; }
+  .va-nav-item { flex: 0 0 auto; flex-direction: row; gap: 8px; padding: 8px 14px; font-size: 0.9rem; }
+  .va-nav-item.active { background: var(--va-felt-soft); }
+  .va-nav-icon { font-size: 1.05rem; }
+  .va-nav-badge { position: static; margin-left: 2px; }
+}
+
+/* Avatars & people */
+.va-avatar { position: relative; display: inline-grid; place-items: center; border-radius: 50%; background: #eef1ee; overflow: visible; flex-shrink: 0; vertical-align: middle; }
+.va-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.va-avatar-online { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #2f9e44; border: 2px solid #fff; }
+.va-people-strip { display: flex; gap: 12px; overflow-x: auto; padding: 4px 0 6px; }
+.va-person-chip { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; background: none; border: 0; font: inherit; cursor: pointer; padding: 6px 2px; border-radius: 10px; }
+.va-person-chip:hover { background: #f1f3f0; }
+.va-person-name { font-weight: 600; font-size: 0.85rem; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.va-person-sub { font-size: 0.72rem; color: var(--va-muted); max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.va-person-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--va-line); flex-wrap: wrap; }
+.va-person-card:last-child { border-bottom: 0; }
+.va-person-main { display: flex; align-items: center; gap: 12px; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; padding: 0; min-width: 0; flex: 1; }
+.va-person-main .va-person-name, .va-person-main .va-person-sub { max-width: none; white-space: normal; }
+.va-person-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.va-person-actions .arena-button { margin-bottom: 0; }
+.va-tier-pill { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; background: var(--va-gold-soft); color: #6e4e0b; padding: 2px 6px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+
+/* Home */
+.va-hero { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-end; margin: 4px 0 16px; }
+.va-hero h1 { margin: 0; font-size: 1.7rem; letter-spacing: -0.01em; }
+.va-hero .subtitle { margin: 4px 0 0; color: #555; max-width: 60ch; }
+.va-stat-row { display: flex; gap: 8px; }
+.va-stat { background: #fff; border: 1px solid var(--va-line); border-radius: 12px; padding: 10px 14px; min-width: 84px; display: flex; flex-direction: column; align-items: center; }
+.va-stat-num { font-size: 1.35rem; font-weight: 800; color: var(--va-ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.va-stat-dim { color: var(--va-muted); font-weight: 500; font-size: 0.95rem; }
+.va-stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--va-muted); margin-top: 2px; }
+.va-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+@media (min-width: 720px) { .va-grid { grid-template-columns: 1fr 1fr; gap: 0 16px; } .va-span2 { grid-column: 1 / -1; } }
+.va-play-cta { background: var(--va-felt); color: #fff; }
+.va-play-cta h2, .va-play-cta .arena-muted { color: #fff; }
+.va-play-cta .arena-muted { opacity: 0.85; }
+.va-play-cta .arena-button.primary { background: var(--va-gold); color: var(--va-ink); margin-bottom: 0; }
+.va-topic h2 { margin-bottom: 6px; }
+.va-topic-prompt { font-size: 1.02rem; line-height: 1.5; max-width: 68ch; }
+.va-replies { display: grid; gap: 10px; margin: 10px 0 12px; }
+.va-reply { display: flex; gap: 10px; align-items: flex-start; font-size: 0.93rem; }
+.va-reply-name { font-weight: 600; }
+.va-quiz-options { display: grid; gap: 8px; margin: 8px 0; }
+.va-quiz-option { text-align: left; background: #f7f7f3; border: 1px solid var(--va-line); border-radius: 10px; padding: 10px 12px; font: inherit; cursor: pointer; display: flex; gap: 10px; align-items: center; min-height: 44px; }
+.va-quiz-option:hover:not(:disabled) { border-color: var(--va-felt); }
+.va-quiz-option.correct { background: var(--va-felt-soft); border-color: var(--va-felt); }
+.va-quiz-option.wrong { background: #fbe9e4; border-color: #b24a2f; }
+.va-quiz-option.muted { opacity: 0.55; }
+.va-quiz-letter { font-weight: 700; color: var(--va-muted); width: 1.2em; }
+.va-quiz-explain { font-size: 0.93rem; line-height: 1.5; }
+.va-challenge { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--va-line); flex-wrap: wrap; }
+.va-challenge:last-child { border-bottom: 0; }
+.va-challenge-body { flex: 1; min-width: 200px; font-size: 0.95rem; }
+.va-challenge-msg { font-style: italic; color: #444; }
+.va-challenge-actions { display: flex; gap: 8px; }
+.va-challenge-actions .arena-button { margin-bottom: 0; }
+
+/* Games */
+.va-game-list { display: grid; gap: 10px; }
+.va-game-card { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--va-line); border-radius: 12px; background: #fafaf7; flex-wrap: wrap; }
+.va-game-card.status-live { background: #fff; border-color: #cfe3d8; }
+.va-game-icon { font-size: 1.8rem; width: 44px; text-align: center; }
+.va-game-body { flex: 1; min-width: 180px; }
+.va-game-name { font-weight: 700; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.va-game-card .arena-button { margin-bottom: 0; }
+.va-seat-color { font-weight: 600; font-size: 0.85rem; }
+
+/* Identity */
+.va-identity-row { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+.va-identity-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.va-identity-actions .arena-button { margin-bottom: 0; }
+.va-avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: 6px; margin-bottom: 12px; }
+.va-avatar-pick { font-size: 1.4rem; background: #f7f7f3; border: 2px solid transparent; border-radius: 10px; height: 44px; cursor: pointer; }
+.va-avatar-pick.picked { border-color: var(--va-felt); background: var(--va-felt-soft); }
+.va-colors { margin-bottom: 8px; }
+.va-color-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-width: 360px; }
+.va-color-swatch { position: relative; height: 44px; border-radius: 10px; border: 3px solid transparent; cursor: pointer; }
+.va-color-swatch.picked { border-color: var(--va-ink); box-shadow: 0 0 0 2px #fff inset; }
+.va-color-swatch:focus-visible { outline: 2px solid var(--va-gold); outline-offset: 2px; }
+.va-color-rank { position: absolute; top: 4px; left: 6px; background: #fff; color: var(--va-ink); font-size: 0.7rem; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; }
+.va-color-summary { font-size: 0.88rem; color: #555; margin: 8px 0 0; }
+
+/* Record */
+.va-record-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 14px; }
+@media (min-width: 720px) { .va-record-grid { grid-template-columns: 260px 1fr; } }
+.va-record h3 { margin: 12px 0 4px; font-size: 1.05rem; }
+.va-record-persona h3 { font-size: 1.3rem; margin-top: 0; }
+.va-radar { display: block; max-width: 100%; height: auto; color: var(--va-ink); }
+.va-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.va-badge-chip { background: var(--va-gold-soft); color: #6e4e0b; border-radius: 999px; padding: 4px 10px; font-size: 0.85rem; font-weight: 600; }
+.va-history { display: grid; gap: 6px; }
+.va-history-row { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 10px; align-items: center; font-size: 0.9rem; padding: 6px 0; border-bottom: 1px solid var(--va-line); }
+.va-history-row:last-child { border-bottom: 0; }
+.va-place { font-weight: 800; color: var(--va-muted); }
+.va-place.place-1 { color: var(--va-gold); }
+.va-delta { font-weight: 700; font-variant-numeric: tabular-nums; }
+.va-delta.up { color: var(--va-felt); }
+.va-delta.down { color: #b24a2f; }
+.va-member-head { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.va-member-text { flex: 1; min-width: 200px; }
+.va-member-text h1 { margin: 0; font-size: 1.5rem; }
+.va-member-headline { margin: 6px 0 2px; font-weight: 600; }
+
+/* Result card over game over */
+.va-result-card { max-width: 640px; margin: 16px auto 0; background: #fff; border: 1px solid var(--va-line); border-radius: 14px; padding: 16px 18px; box-shadow: 0 8px 30px rgba(0,0,0,.08); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.va-result-head h3 { margin: 0 0 6px; font-size: 1.25rem; }
+.va-result-insight { margin: 0 0 10px; color: #444; }
+.va-result-people { margin-bottom: 10px; }
+.va-result-card .arena-button { margin-bottom: 0; }
+
+/* Tiers */
+.va-tiers { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 720px) { .va-tiers { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1000px) { .va-tiers { grid-template-columns: repeat(4, 1fr); } }
+.va-tier { background: #fff; border: 1px solid var(--va-line); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; }
+.va-tier.featured { border-color: var(--va-felt); box-shadow: 0 8px 30px rgba(31,106,75,.12); }
+.va-tier.current { background: #fafaf7; }
+.va-tier-price { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; margin: 2px 0 4px; }
+.va-tier-perks { padding-left: 18px; margin: 8px 0 14px; font-size: 0.9rem; line-height: 1.5; flex: 1; }
+.va-tier .arena-button { margin-bottom: 0; }
+.va-tier-current { font-weight: 700; color: var(--va-felt); }
+.va-fineprint { font-size: 0.82rem; margin-top: 12px; }
+@media (max-width: 520px) {
+  .va-person-card { flex-direction: column; align-items: stretch; }
+  .va-person-actions { justify-content: flex-start; padding-left: 56px; }
+}

@@ -2,3 +2,4 @@ node_modules/
 dist/
 .env.local
 supabase/functions/resolve-move/bundle.generated.js
+*.timestamp-*.mjs

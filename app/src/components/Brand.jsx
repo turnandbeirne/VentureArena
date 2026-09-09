@@ -1,8 +1,8 @@
-// The site masthead: a gears+coin logo mark, the "VentureArena" wordmark,
-// and a cursive tagline underneath — all one link back to venturemaker.org,
-// per the brief ("logo/title and header should link back to venturemaker.org").
-// Rendered above every screen (see App.jsx) so it's consistent everywhere,
-// including the signed-out auth screen.
+// The site masthead: a gears+coin logo mark, the "Venture Arena" wordmark,
+// and the tagline — one link back to venturemaker.org, per the brief
+// ("logo/title and header should link back to venturemaker.org"). Rendered
+// above every screen (see App.jsx); `compact` drops the tagline line so the
+// signed-in tabs keep more room for content.
 
 const GEAR_TEETH = Array.from({ length: 8 }, (_, i) => (i * 360) / 8);
 
@@ -27,17 +27,17 @@ function GearCoinMark() {
   );
 }
 
-export default function Brand() {
+export default function Brand({ compact = false }) {
   return (
-    <a className="arena-brand" href="https://venturemaker.org" target="_blank" rel="noreferrer">
+    <a className={`arena-brand ${compact ? 'compact' : ''}`} href="https://venturemaker.org" target="_blank" rel="noreferrer">
       <div className="arena-brand-row">
         <GearCoinMark />
         <div className="arena-brand-text">
-          <span className="arena-brand-name">VentureArena</span>
-          <span className="arena-brand-subtitle">A VentureMaker game space</span>
+          <span className="arena-brand-name">Venture Arena</span>
+          <span className="arena-brand-subtitle">by VentureMaker</span>
         </div>
       </div>
-      <div className="arena-brand-tagline">VentureArena — where competition means business</div>
+      {!compact && <div className="arena-brand-tagline">Where games mean business. Get in the game!</div>}
     </a>
   );
 }

@@ -32,6 +32,7 @@ import GameOverScreen from '../../vendor/game-ui/components/GameOverScreen';
 import StatsHUD from '../../vendor/game-ui/components/StatsHUD';
 import AssetHistoryModal from '../../vendor/game-ui/components/AssetHistoryModal';
 import { useOnlineGame } from './useOnlineGame';
+import ArenaResultCard from './ArenaResultCard.jsx';
 
 /**
  * The real VentureFlow board, ported into an Arena room — replaces the old
@@ -186,11 +187,14 @@ export default function ArenaGameBoard({ room, gameState, mySeatIndex, session, 
 
   if (status === 'gameover' && !showBoardAfterGameOver) {
     return (
-      <GameOverScreen
-        state={gameState}
-        onPlayAgain={onLeave}
-        onViewBoard={() => setShowBoardAfterGameOver(true)}
-      />
+      <>
+        <ArenaResultCard room={room} session={session} onLeave={onLeave} />
+        <GameOverScreen
+          state={gameState}
+          onPlayAgain={onLeave}
+          onViewBoard={() => setShowBoardAfterGameOver(true)}
+        />
+      </>
     );
   }
 
