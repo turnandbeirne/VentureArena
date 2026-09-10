@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react';
 import {
-  cancelChallenge, fetchPersonas, fetchProfiles, findProfileByEmail, listFriendships, listMyChallenges,
+  cancelChallenge, fetchPersonas, fetchProfiles, findProfileByEmail, listFriendships, listMyChallenges, matchSuggestions,
   onlineMembers, recentTablemates, requestFriend, respondFriend, sendChallenge, timeAgo,
 } from '../lib/arena.js';
 import Avatar from '../components/Avatar.jsx';
+import InvitePanel from '../components/InvitePanel.jsx';
+import AccessNotice from '../components/AccessNotice.jsx';
 
 // People (blueprint §5): who's online, friends and requests, members you've
 // played with, and a way to find someone by email. Every card carries the
 // two actions that matter: Challenge and Add friend.
-export default function People({ session, onNavigate, onOpenRoom }) {
+export default function People({ session, access, onNavigate, onOpenRoom }) {
   const me = session.user.id;
   const isGuest = session.user.is_anonymous;
   const [online, setOnline] = useState([]);
   const [friendships, setFriendships] = useState([]);
   const [tablemates, setTablemates] = useState([]);
+  const [matches, setMatches] = useState([]);
   const [profiles, setProfiles] = useState({});
   const [personas, setPersonas] = useState({});
   const [challenges, setChallenges] = useState([]);
@@ -26,12 +29,13 @@ export default function People({ session, onNavigate, onOpenRoom }) {
   async function refresh() {
     setError(null);
     try {
-      const [on, fr, tm, ch] = await Promise.all([onlineMembers(), listFriendships(me), recentTablemates(), listMyChallenges()]);
+      const [on, fr, tm, ch, mt] = await Promise.all([onlineMembers(), listFriendships(me), recentTablemates(), listMyChallenges(), isGuest ? [] : matchSuggestions(12).catch(() => [])]);
       setOnline(on);
       setFriendships(fr);
       setTablemates(tm);
       setChallenges(ch);
-      const ids = [...on.map((o) => o.id), ...fr.flatMap((f) => [f.user_id, f.friend_id]), ...tm.map((t) => t.user_id), ...ch.flatMap((c) => [c.challenger_id, c.challenged_id])];
+      setMatches(mt);
+      const ids = [...on.map((o) => o.id), ...fr.flatMap((f) => [f.user_id, f.friend_id]), ...tm.map((t) => t.user_id), ...ch.flatMap((c) => [c.challenger_id, c.challenged_id]), ...mt.map((m) => m.user_id)];
       const [p, x] = await Promise.all([fetchProfiles(ids), fetchPersonas(ids)]);
       setProfiles(p);
       setPersonas(x);
@@ -86,7 +90,7 @@ export default function People({ session, onNavigate, onOpenRoom }) {
   const friends = friendships.filter((f) => f.status === 'accepted').map((f) => (f.user_id === me ? f.friend_id : f.user_id));
   const incoming = friendships.filter((f) => f.status === 'pending' && f.friend_id === me).map((f) => f.user_id);
 
-  function PersonCard({ id, sub }) {
+  function PersonCard({ id, sub, reasons, distance }) {
     const p = profiles[id];
     if (!p) return null;
     const status = friendStatus(id);
@@ -98,7 +102,8 @@ export default function People({ session, onNavigate, onOpenRoom }) {
           <Avatar profile={p} size={44} online={isOnline} />
           <div>
             <div className="va-person-name">{p.display_name} {p.tier && p.tier !== 'free' && <span className="va-tier-pill">{p.tier}</span>}</div>
-            <div className="va-person-sub">{personas[id]?.label || (p.is_guest ? 'Guest' : 'Member')}{p.headline ? ` · ${p.headline}` : ''}{sub ? ` · ${sub}` : ''}</div>
+            <div className="va-person-sub">{personas[id]?.label || (p.is_guest ? 'Guest' : 'Member')}{p.headline ? ` · ${p.headline}` : ''}{sub ? ` · ${sub}` : ''}{distance != null ? ` · ~${distance} km away` : ''}</div>
+            {reasons?.length > 0 && <div className="va-reasons">{reasons.map((r) => <span className="va-reason" key={r}>{r}</span>)}</div>}
           </div>
         </button>
         <div className="va-person-actions">
@@ -128,6 +133,7 @@ export default function People({ session, onNavigate, onOpenRoom }) {
       </div>
       {error && <div className="arena-error">{error}</div>}
       {toast && <div className="va-toast">{toast}</div>}
+      <AccessNotice access={access} isGuest={isGuest} onNavigate={onNavigate} />
 
       <section className="arena-panel">
         <form className="arena-inline-form" onSubmit={lookup}>
@@ -136,6 +142,26 @@ export default function People({ session, onNavigate, onOpenRoom }) {
         </form>
         {found === null && <p className="arena-muted">No member with that email yet — send them an invite link from any table.</p>}
         {found && <PersonCard id={found.id} />}
+      </section>
+
+      {!isGuest && (
+        <section className="arena-panel">
+          <h2>Good matches for you</h2>
+          {access && !access.can_see_bios ? (
+            <p className="arena-muted">Introductions unlock once your email is verified and your member profile is complete ({access.survey_score ?? 0}% so far). <button className="arena-link-button" onClick={() => onNavigate('me')}>Finish your profile</button></p>
+          ) : matches.length === 0 ? (
+            <p className="arena-muted">Fill in your goals, project and industry on the Me tab and play a game or two — matches appear as soon as there's something to match on.</p>
+          ) : (
+            <>
+              <p className="arena-muted">Ranked by your goals and bios, industry and stage, playing styles, active projects, and (when you both share it) distance.</p>
+              {matches.map((m) => <PersonCard key={m.user_id} id={m.user_id} reasons={m.reasons} distance={m.distance_km} />)}
+            </>
+          )}
+        </section>
+      )}
+
+      <section className="arena-panel">
+        <InvitePanel session={session} compact title="Bring a friend in" />
       </section>
 
       {incoming.length > 0 && (

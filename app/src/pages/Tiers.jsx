@@ -11,7 +11,18 @@ const TIERS = [
   { key: 'vip', name: 'VIP', price: '$49 / mo', blurb: 'Coaching from entrepreneurs who have done it.', perks: ['Everything in Premium', '1:1 coaching monthly with priority booking', 'Private strategy sessions', 'Front-row AMAs with follow-up', 'Investor Demo Day access', 'Custom table color'] },
 ];
 
-export default function Tiers({ session, profile }) {
+const PAID_FEATURES = [
+  ['lessons', 'Lessons & best-practice library', 'Member+'],
+  ['matchmaking_plus', 'Matchmaking+ (mentor & co-founder intros)', 'Member+'],
+  ['prizes', 'Prize-bearing tournaments', 'Member+'],
+  ['classes', 'Live classes & strategy sessions', 'Member+'],
+  ['pitch_reviews', 'Pitch reviews', 'Premium+'],
+  ['recruiting', 'Recruiting board', 'Premium+'],
+  ['coaching', '1:1 coaching & office hours', 'VIP'],
+  ['consulting', 'Consulting engagements', 'VIP'],
+];
+
+export default function Tiers({ session, profile, access }) {
   const [interest, setInterest] = useState(null);
   const [error, setError] = useState(null);
   const current = profile?.tier ?? 'free';
@@ -38,6 +49,16 @@ export default function Tiers({ session, profile }) {
       </div>
       {error && <div className="arena-error">{error}</div>}
       {interest && <div className="va-notice">Noted — you're on the list for {TIERS.find((t) => t.key === interest)?.name}. Paid plans open soon; we'll email you first.</div>}
+      <section className="arena-panel">
+        <h2>What paid plans unlock</h2>
+        <p className="arena-muted">Playing, personas and friends are free. These need a paid seat:</p>
+        <div className="va-feature-grid">
+          {PAID_FEATURES.map(([key, label, tier]) => {
+            const on = access?.paid_features?.[key];
+            return <div key={key} className={`va-feature ${on ? 'on' : ''}`}><span>{on ? '✓' : '🔒'}</span><div><strong>{label}</strong><div className="arena-muted">{tier}</div></div></div>;
+          })}
+        </div>
+      </section>
       <div className="va-tiers">
         {TIERS.map((t) => (
           <section key={t.key} className={`va-tier ${t.featured ? 'featured' : ''} ${current === t.key ? 'current' : ''}`}>

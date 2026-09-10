@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './lib/supabaseClient.js';
-import { getMyProfile, listMyChallenges, touchPresence } from './lib/arena.js';
+import { captureReferralFromUrl, claimReferral, clearStoredReferral, getMyProfile, listMyChallenges, myAccess, storedReferral, touchPresence } from './lib/arena.js';
+import Onboarding from './pages/Onboarding.jsx';
 import Brand from './components/Brand.jsx';
 import NavBar from './components/NavBar.jsx';
 import AuthScreen from './pages/AuthScreen.jsx';
@@ -30,8 +31,19 @@ function readRoute() {
 export default function App() {
   const [session, setSession] = useState(undefined); // undefined = loading
   const [profile, setProfile] = useState(null);
+  const [access, setAccess] = useState(null);
   const [route, setRoute] = useState(readRoute);
   const [pendingChallenges, setPendingChallenges] = useState(0);
+
+  // ?ref=CODE from an invite link is remembered until the person has a real
+  // account, then credited once (vm_claim_referral is idempotent).
+  useEffect(() => { captureReferralFromUrl(); }, []);
+  useEffect(() => {
+    if (!session || session.user.is_anonymous) return;
+    const code = storedReferral();
+    if (!code) return;
+    claimReferral(code).finally(clearStoredReferral);
+  }, [session]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -48,7 +60,8 @@ export default function App() {
   const refreshProfile = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
-      setProfile(await getMyProfile(session.user.id));
+      setProfile(await getMyProfile());
+      setAccess(await myAccess());
     } catch {
       /* profile row appears via trigger a moment after sign-up; the next refresh gets it */
     }
@@ -107,27 +120,32 @@ export default function App() {
   }
 
   const inRoom = Boolean(route.room);
+  // First sign-in with a real account: a short guided setup before the tabs.
+  // Guests skip it entirely (they asked to play once, no questions).
+  const needsOnboarding = profile && !session.user.is_anonymous && !profile.onboarding_done_at && !inRoom;
   let screen;
-  if (inRoom) {
+  if (needsOnboarding) {
+    screen = <Onboarding session={session} profile={profile} onDone={refreshProfile} />;
+  } else if (inRoom) {
     screen = <RoomScreen session={session} roomParam={route.room} onLeave={leaveRoom} />;
   } else if (route.tab === 'member') {
     screen = <Member session={session} userId={route.memberId} onBack={() => window.history.length > 1 ? window.history.back() : navigate('people')} />;
   } else if (route.tab === 'play') {
     screen = <Lobby session={session} profile={profile} onOpenRoom={openRoom} onNavigate={navigate} />;
   } else if (route.tab === 'people') {
-    screen = <People session={session} onNavigate={navigate} onOpenRoom={openRoom} />;
+    screen = <People session={session} access={access} onNavigate={navigate} onOpenRoom={openRoom} />;
   } else if (route.tab === 'tiers') {
-    screen = <Tiers session={session} profile={profile} />;
+    screen = <Tiers session={session} profile={profile} access={access} />;
   } else if (route.tab === 'me') {
     screen = <Me session={session} profile={profile} onProfileChanged={refreshProfile} onNavigate={navigate} />;
   } else {
-    screen = <Home session={session} profile={profile} onNavigate={navigate} onOpenRoom={openRoom} onProfileChanged={refreshProfile} />;
+    screen = <Home session={session} profile={profile} access={access} onNavigate={navigate} onOpenRoom={openRoom} onProfileChanged={refreshProfile} />;
   }
 
   return (
     <div className={`va-app ${inRoom ? 'in-room' : ''}`}>
       {!inRoom && <Brand compact />}
-      {!inRoom && <NavBar current={route.tab} onNavigate={navigate} badges={{ home: pendingChallenges }} />}
+      {!inRoom && !needsOnboarding && <NavBar current={route.tab} onNavigate={navigate} badges={{ home: pendingChallenges }} />}
       <main className="va-main">{screen}</main>
     </div>
   );
