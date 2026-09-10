@@ -12,7 +12,7 @@ export async function getVentureflowGameId() {
 export async function fetchProfilesByIds(ids) {
   const uniqueIds = [...new Set(ids)].filter(Boolean);
   if (uniqueIds.length === 0) return {};
-  const { data, error } = await supabase.from('vm_profiles').select('id, display_name, avatar').in('id', uniqueIds);
+  const { data, error } = await supabase.from('vm_profiles').select('id, display_name, avatar, photo_url').in('id', uniqueIds);
   if (error) throw error;
   const byId = {};
   for (const p of data) byId[p.id] = p;
@@ -101,12 +101,13 @@ export async function fetchMoves(roomId) {
  * the 0004_timeout_naming_and_avatars migration, and the old insert here
  * was left pointing at the now-dropped column, which broke every room
  * creation with a "column does not exist" error until this fix.) */
-export async function createRoom({ hostId, gameId, seatPlan, turnTimeoutMinutes }) {
+export async function createRoom({ hostId, gameId, seatPlan, turnTimeoutMinutes, name }) {
   const { data: rooms, error: roomErr } = await supabase
     .from('vm_rooms')
     .insert({
       game_id: gameId,
       host_id: hostId,
+      ...(name ? { name } : {}),
       ...(turnTimeoutMinutes !== undefined ? { turn_timeout_minutes: turnTimeoutMinutes } : {}),
     })
     .select()

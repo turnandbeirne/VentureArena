@@ -1,4 +1,18 @@
-# VentureMaker Arena
+# Venture Arena
+
+> **Where games mean business. Get in the game!**
+
+**Arena layer (Sept 2026, branch `arena-v1`).** On top of the multiplayer
+platform described below, the app is now *Venture Arena*: a five-tab
+experience (Home / Play / People / Membership / Me) with member profiles
+(photo, avatar, three ranked table colors with seat-order fallback, business
+mini-profile), friends and challenges, a daily rhythm (check-in streaks,
+Arena Points, Topic of the Day, daily quiz), per-game ratings, a persona
+derived from how you actually play, and a public Arena Record. See
+`ARENA.md` for the design → implementation map, the game-module registry
+(how the engine is now loaded from `vm_game_modules`), and the launch
+checklist.
+
 
 A generic, game-agnostic multiplayer platform for VentureMaker games, built on
 Supabase. VentureFlow is the first game plugged into it. The shared Supabase

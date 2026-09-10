@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { assignBotSeat, claimSeat, openSeat, vacateSeat } from '../../lib/rooms.js';
-import { resolveMove } from '../../lib/supabaseClient.js';
+import { resolveMove, supabase } from '../../lib/supabaseClient.js';
+import { listColors } from '../../lib/arena.js';
+import Avatar from '../../components/Avatar.jsx';
 
 export default function SeatingPanel({ room, seats, profiles, session, onChanged }) {
   const [busy, setBusy] = useState(false);
@@ -8,6 +10,19 @@ export default function SeatingPanel({ room, seats, profiles, session, onChanged
   const isHost = room.host_id === session.user.id;
   const mySeat = seats.find((s) => s.user_id === session.user.id);
   const allFilled = seats.every((s) => s.user_id || s.bot_personality_id);
+  const [colors, setColors] = useState({});
+  const [preview, setPreview] = useState({});
+
+  // Preview of who gets which color (ranked choice with fallback — the
+  // server assigns for real at START_GAME). Recomputed as seats change.
+  useEffect(() => {
+    listColors().then((rows) => setColors(Object.fromEntries(rows.map((c) => [c.key, c])))).catch(() => {});
+  }, []);
+  useEffect(() => {
+    supabase.rpc('vm_assign_seat_colors', { p_room_id: room.id }).then(({ data }) => {
+      if (data) setPreview(Object.fromEntries(data.map((r) => [r.seat_index, r.color_key])));
+    });
+  }, [room.id, seats]);
 
   async function run(fn) {
     setError(null);
@@ -41,8 +56,10 @@ export default function SeatingPanel({ room, seats, profiles, session, onChanged
               <span className="arena-seat-index">Seat {seat.seat_index + 1}</span>
               {seat.user_id ? (
                 <span className="arena-seat-occupant">
-                  {profile?.avatar || '🙂'} {isMe ? 'You' : profile?.display_name || 'Player'}
+                  <Avatar profile={profile} size={28} color={colors[preview[seat.seat_index]]?.hex ?? null} />{' '}
+                  {isMe ? 'You' : profile?.display_name || 'Player'}
                   {seat.seat_index === 0 ? ' (host)' : ''}
+                  {colors[preview[seat.seat_index]] && <span className="va-seat-color" style={{ color: colors[preview[seat.seat_index]].hex }}> · {colors[preview[seat.seat_index]].name}</span>}
                 </span>
               ) : seat.bot_personality_id ? (
                 <span className="arena-seat-occupant">🤖 AI ({seat.bot_personality_id})</span>
