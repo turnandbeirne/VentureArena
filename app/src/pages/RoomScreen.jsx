@@ -4,6 +4,7 @@ import { fetchMoves, fetchProfilesByIds, fetchRoom, fetchRoomByInviteCode, fetch
 import { replayRoom } from '../lib/replay.js';
 import SeatingPanel from './room/SeatingPanel.jsx';
 import ArenaGameBoard from './room/ArenaGameBoard.jsx';
+import InvitePanel from '../components/InvitePanel.jsx';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -90,9 +91,14 @@ export default function RoomScreen({ session, roomParam, onLeave }) {
   // shown only for the states that have no header of their own: still
   // loading, not found, an error, or the pre-game seating panel.
   const showPageHeader = !(room && room.status !== 'open' && gameState);
+  const boardUp = room && room.status !== 'open' && gameState;
 
+  // While the board is up this page steps out of the way entirely: no
+  // 900px column, no page padding, cream board background — the board
+  // gets the same full-width canvas it has when VentureFlow is played on
+  // its own (see .va-board-stage in styles.css).
   return (
-    <div className="arena-page">
+    <div className={boardUp ? 'va-board-stage' : 'arena-page'}>
       {showPageHeader && (
         <div className="arena-page-header">
           <div>
@@ -116,7 +122,12 @@ export default function RoomScreen({ session, roomParam, onLeave }) {
       {room === null && <p className="arena-error">No room found for "{roomParam}".</p>}
 
       {room && room.status === 'open' && (
-        <SeatingPanel room={room} seats={seats} profiles={profiles} session={session} onChanged={load} />
+        <>
+          <SeatingPanel room={room} seats={seats} profiles={profiles} session={session} onChanged={load} />
+          {seats.some((s) => !s.user_id && !s.bot_personality_id) && (
+            <div className="arena-panel"><InvitePanel session={session} roomCode={room.invite_code} compact /></div>
+          )}
+        </>
       )}
 
       {room && room.status !== 'open' && gameState && (

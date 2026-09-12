@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
+import { storedReferral, signInWith, OAUTH_PROVIDERS } from '../lib/arena.js';
 
 // Real accounts (email/password) and guests (Supabase anonymous sign-in)
 // both land the user in the same LobbyPlaceholder afterwards — see
@@ -38,6 +39,17 @@ export default function AuthScreen() {
     }
   }
 
+  async function handleOAuth(provider) {
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWith(provider);
+    } catch (err) {
+      setError(`${err.message} — this sign-in method may not be switched on yet; use email for now.`);
+      setBusy(false);
+    }
+  }
+
   async function handleGuest() {
     setError(null);
     setBusy(true);
@@ -54,10 +66,22 @@ export default function AuthScreen() {
   return (
     <div className="arena-shell">
       <h1>Get in the game</h1>
+      {storedReferral() && <div className="va-notice">You were invited by a friend — create a free account and you'll be connected automatically.</div>}
       <p className="subtitle">Play business games with founders and friends. Every game reads your style and matches you with the right people. Jump in as a guest or create a free account to keep your record.</p>
 
       {error && <div className="arena-error">{error}</div>}
 
+      <div className="va-auth-paths">
+        <button className="arena-button secondary" onClick={handleGuest} disabled={busy}>
+          <strong>Just play once</strong><span className="va-auth-sub">No account, no questions. One game as a guest.</span>
+        </button>
+      </div>
+      <div className="va-auth-divider"><span>or create a free account — keep your stats, meet people</span></div>
+      <div className="va-oauth-row">
+        {OAUTH_PROVIDERS.map(([key, label]) => (
+          <button key={key} type="button" className="arena-button secondary arena-button-inline" disabled={busy} onClick={() => handleOAuth(key)}>Continue with {label}</button>
+        ))}
+      </div>
       <form onSubmit={handleSubmit}>
         {mode === 'signup' && (
           <input
@@ -89,9 +113,6 @@ export default function AuthScreen() {
         </button>
       </form>
 
-      <button className="arena-button secondary" onClick={handleGuest} disabled={busy}>
-        Continue as guest
-      </button>
 
       <div className="arena-switch">
         {mode === 'signin' ? (

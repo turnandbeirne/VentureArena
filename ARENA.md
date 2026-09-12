@@ -62,3 +62,11 @@ Uploading a new engine version:
 
 Stripe subscriptions; tournaments + hash-chained ledger; Labs playtest
 console; offline-game capture; DM/forum UI (tables exist); VentureBoom.
+
+## v2 (10 Sep 2026) — social profiles, invites, matching, onboarding & gates
+
+- **0010** social links, current project, goals, city/region, referral codes, `vm_invites`, `vm_locations` (owner-only coordinates), `vm_match_suggestions` (goals/bio keywords, industry & stage, persona complement/similarity, active projects, distance only when both share), `vm_public_profile`, `vm_set_location`, `vm_claim_referral` (+20 pts, friend request).
+- **0011** access ladder: `vm_access()`; guests get exactly one game (`vm_guest_seat_guard` trigger); `email_verified` synced from `auth.users`; `vm_recompute_survey` scores the questionnaire (contact fields excluded) and pays 50/100/150-point bonuses; bios, intros and matches gated behind verified email + ≥70% profile (`vm_can_see_bios`, `vm_match_suggestions_gated`, column-level privacy on `vm_profiles` with `vm_my_profile` / `vm_profile_cards`); paid features (lessons, matchmaking+, prizes, classes, pitch reviews, recruiting, coaching, consulting) mapped to tiers in `vm_access().paid_features`.
+- App: sign-in offers *Just play once* / Google / Facebook / LinkedIn / email; 4-step onboarding wizard on first real sign-in; Me tab has email change, socials, project, goals, location double opt-in, invite history; invite by text/email/share/link from Home, People, Me and any open table; People shows *Good matches for you* with reasons and rounded distance; member pages show socials/project/goals only to qualified viewers; Home shows the access ladder notice and locked Member programs.
+
+**Dashboard steps for social sign-in** (Supabase → Authentication → Providers): enable Google, Facebook and LinkedIn (OIDC) with client IDs/secrets from Google Cloud Console, Meta for Developers and LinkedIn Developers, using the callback URL Supabase shows. Until enabled, the buttons show a "not switched on yet" message and email sign-up still works.

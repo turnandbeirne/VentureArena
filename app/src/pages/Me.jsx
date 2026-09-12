@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient.js';
-import { arenaRecord, listColors, myPointsHistory, updateMyProfile, uploadAvatarPhoto, TIER_LABELS } from '../lib/arena.js';
+import { arenaRecord, changeEmail, listColors, myInvites, myPointsHistory, setLocation, updateMyProfile, uploadAvatarPhoto, SOCIAL_FIELDS, TIER_LABELS } from '../lib/arena.js';
+import InvitePanel from '../components/InvitePanel.jsx';
 import Avatar from '../components/Avatar.jsx';
 import ColorPicker from '../components/ColorPicker.jsx';
 import ArenaRecord from '../components/ArenaRecord.jsx';
@@ -22,13 +23,55 @@ export default function Me({ session, profile, onProfileChanged, onNavigate }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
   const fileRef = useRef(null);
+  const [email, setEmail] = useState('');
+  const [emailMsg, setEmailMsg] = useState(null);
+  const [locBusy, setLocBusy] = useState(false);
+  const [invites, setInvites] = useState([]);
 
   useEffect(() => { setForm(formFrom(profile)); }, [profile]);
   useEffect(() => {
     listColors().then(setColors).catch(() => {});
     arenaRecord(session.user.id).then(setRecord).catch(() => {});
     myPointsHistory().then(setPoints).catch(() => {});
-  }, [session.user.id]);
+    if (!isGuest) myInvites().then(setInvites).catch(() => {});
+  }, [session.user.id, isGuest]);
+
+  async function submitEmail(e) {
+    e.preventDefault();
+    setEmailMsg(null);
+    setError(null);
+    try {
+      await changeEmail(email.trim());
+      setEmailMsg(`Check ${email.trim()} for a confirmation link — your email changes once you tap it.`);
+      setEmail('');
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function toggleLocation(on) {
+    setError(null);
+    setLocBusy(true);
+    try {
+      if (!on) {
+        await setLocation(false);
+      } else {
+        const pos = await new Promise((resolve, reject) => {
+          if (!navigator.geolocation) return reject(new Error('This browser cannot share location.'));
+          navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error('Location permission was declined — you can still type your city below.')), { timeout: 10000, maximumAge: 600000 });
+        });
+        // Rounded to ~1 km before it ever leaves the device; others only see a 5 km-rounded distance, and only if they opted in too.
+        const lat = Math.round(pos.coords.latitude * 100) / 100;
+        const lng = Math.round(pos.coords.longitude * 100) / 100;
+        await setLocation(true, lat, lng, form.city.trim() || null, form.region.trim() || null);
+      }
+      await onProfileChanged();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLocBusy(false);
+    }
+  }
 
   async function save(e) {
     e?.preventDefault();
@@ -43,6 +86,11 @@ export default function Me({ session, profile, onProfileChanged, onNavigate }) {
         business_stage: form.business_stage || null,
         industry: form.industry.trim() || null,
         looking_for: form.looking_for.trim() || null,
+        current_project: form.current_project.trim() || null,
+        goals: form.goals.trim() || null,
+        social_links: Object.fromEntries(Object.entries(form.social_links).map(([k, v]) => [k, normalizeUrl(v)]).filter(([, v]) => v)),
+        city: form.city.trim() || null,
+        region: form.region.trim() || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
       await onProfileChanged();
@@ -101,7 +149,7 @@ export default function Me({ session, profile, onProfileChanged, onNavigate }) {
 
       {isGuest ? (
         <GuestUpgrade onDone={onProfileChanged} />
-      ) : (
+      ) : (<>
         <form className="arena-panel" onSubmit={save}>
           <div className="va-identity-row">
             <Avatar profile={{ ...profile, avatar: form.avatar }} size={88} color={myColor} />
@@ -148,9 +196,59 @@ export default function Me({ session, profile, onProfileChanged, onNavigate }) {
           <label className="arena-label">Looking for</label>
           <input className="arena-field" placeholder="e.g. a technical co-founder, a mentor, opponents" value={form.looking_for} maxLength={120} onChange={(e) => setForm({ ...form, looking_for: e.target.value })} />
 
+          <label className="arena-label">What you're building right now</label>
+          <input className="arena-field" placeholder="e.g. Payflow — invoicing for youth sports clubs, in beta with 12 customers" value={form.current_project} maxLength={200} onChange={(e) => setForm({ ...form, current_project: e.target.value })} />
+          <label className="arena-label">Your goals here</label>
+          <input className="arena-field" placeholder="e.g. find a technical co-founder, practice negotiating, meet investors" value={form.goals} maxLength={300} onChange={(e) => setForm({ ...form, goals: e.target.value })} />
+
+          <h3 className="va-subhead">Social profiles</h3>
+          <p className="arena-muted">Shown on your public Arena Record so people can find you off-platform.</p>
+          {SOCIAL_FIELDS.map(([key, label, placeholder]) => (
+            <div key={key}>
+              <label className="arena-label">{label}</label>
+              <input className="arena-field" placeholder={placeholder} value={form.social_links[key] ?? ''} maxLength={200} onChange={(e) => setForm({ ...form, social_links: { ...form.social_links, [key]: e.target.value } })} />
+            </div>
+          ))}
+
+          <h3 className="va-subhead">Location</h3>
+          <p className="arena-muted">Optional. Your city shows on your record only while sharing is on. Distance to other members appears only when <strong>both</strong> of you have turned sharing on, rounded to 5 km — never an exact position.</p>
+          <div className="va-inline-2">
+            <input className="arena-field" placeholder="City" value={form.city} maxLength={60} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            <input className="arena-field" placeholder="State / country" value={form.region} maxLength={60} onChange={(e) => setForm({ ...form, region: e.target.value })} />
+          </div>
+          <label className="va-switch">
+            <input type="checkbox" checked={Boolean(profile?.share_location)} disabled={locBusy} onChange={(e) => toggleLocation(e.target.checked)} />
+            <span>{profile?.share_location ? 'Sharing my approximate location with members who also share theirs' : 'Share my approximate location (double opt-in)'}</span>
+          </label>
+
           <button className="arena-button primary" type="submit" disabled={saving}>{saving ? 'Saving…' : saved ? 'Saved' : 'Save profile'}</button>
         </form>
-      )}
+
+        <form className="arena-panel" onSubmit={submitEmail}>
+          <h2>Account email</h2>
+          <p className="arena-muted">Currently <strong>{session.user.email}</strong>. Enter a new address and we'll send a confirmation link there.</p>
+          {emailMsg && <div className="va-notice">{emailMsg}</div>}
+          <div className="arena-inline-form">
+            <input className="arena-field" type="email" placeholder="new@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <button className="arena-button secondary arena-button-inline" type="submit" disabled={!email.trim()}>Change email</button>
+          </div>
+        </form>
+
+        <section className="arena-panel">
+          <InvitePanel session={session} />
+          {invites.length > 0 && (
+            <div className="va-history" style={{ marginTop: 12 }}>
+              {invites.map((i) => (
+                <div className="va-history-row" key={i.id}>
+                  <span className={`va-delta ${i.joined_at ? 'up' : ''}`}>{i.joined_at ? 'joined' : 'sent'}</span>
+                  <span className="va-history-game">{i.invitee_name || i.contact || 'a friend'} · via {i.channel}{i.room_code ? ' · to a table' : ''}</span>
+                  <span className="arena-muted">{new Date(i.created_at).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </>)}
 
       <section className="arena-panel">
         <div className="arena-panel-header">
@@ -178,6 +276,12 @@ export default function Me({ session, profile, onProfileChanged, onNavigate }) {
   );
 }
 
+function normalizeUrl(v) {
+  const t = String(v || '').trim();
+  if (!t) return '';
+  return /^https?:\/\//i.test(t) ? t : `https://${t.replace(/^@/, '')}`;
+}
+
 const POINT_LABELS = {
   checkin: 'Daily check-in', quiz: 'Daily quiz', topic_reply: 'Joined the Topic of the Day', game_played: 'Played a game',
   game_won: 'Won a game', challenge_accepted: 'Accepted a challenge', playtest: 'Playtested a Lab game', referral: 'Referral',
@@ -192,6 +296,11 @@ function formFrom(profile) {
     business_stage: profile?.business_stage ?? '',
     industry: profile?.industry ?? '',
     looking_for: profile?.looking_for ?? '',
+    current_project: profile?.current_project ?? '',
+    goals: profile?.goals ?? '',
+    social_links: profile?.social_links ?? {},
+    city: profile?.city ?? '',
+    region: profile?.region ?? '',
   };
 }
 

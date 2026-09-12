@@ -6,14 +6,17 @@
 const ME = '11111111-1111-1111-1111-111111111111';
 const DEV = '22222222-2222-2222-2222-222222222222';
 const LENA = '33333333-3333-3333-3333-333333333333';
-const guest = new URLSearchParams(window.location.search).get('guest') === '1';
+const params = new URLSearchParams(window.location.search);
+const guest = params.get('guest') === '1';
+const onboard = params.get('onboard') === '1';
+const signedOut = params.get('auth') === '1';
 
 const now = Date.now();
 const iso = (msAgo) => new Date(now - msAgo).toISOString();
 
 const T = {
   vm_profiles: [
-    { id: ME, display_name: 'Michael', avatar: '🦈', photo_url: null, is_guest: guest, tier: 'premium', color_ranks: ['gold', 'teal', 'plum'], headline: 'Building Venture Arena', business_stage: 'building', industry: 'edtech', looking_for: 'game designers and a technical co-founder', streak_count: 4, points_balance: 185, last_seen_at: iso(0) },
+    { id: ME, display_name: 'Michael', avatar: '🦈', photo_url: null, is_guest: guest, tier: 'premium', color_ranks: ['gold', 'teal', 'plum'], headline: 'Building Venture Arena', business_stage: 'building', industry: 'edtech', looking_for: 'game designers and a technical co-founder', current_project: 'Venture Arena v2', goals: 'launch VentureBoom, meet investors', social_links: { linkedin: 'https://linkedin.com/in/michael' }, city: 'New York', region: 'NY', share_location: true, onboarding_done_at: onboard ? null : '2026-09-01T00:00:00Z', email_verified: true, survey_score: 85, streak_count: 4, points_balance: 185, last_seen_at: iso(0) },
     { id: DEV, display_name: 'Dev Patel', avatar: '🦁', photo_url: null, is_guest: false, tier: 'member', color_ranks: ['gold', 'teal', 'brick'], headline: 'Fintech founder, pre-seed', business_stage: 'launched', industry: 'fintech', last_seen_at: iso(30_000) },
     { id: LENA, display_name: 'Lena Ortiz', avatar: '🦉', photo_url: null, is_guest: false, tier: 'free', color_ranks: ['teal'], headline: 'Ex-operator, now advising', business_stage: 'investor', industry: 'consumer', last_seen_at: iso(90_000) },
   ],
@@ -47,6 +50,7 @@ const T = {
   vm_game_results: [
     { user_id: ME, room_id: 'r1', placement: 1, player_count: 3, rating_before: 1212, rating_after: 1228, signals: { risk: 68, horizon: 62, negotiation: 75, cooperation: 51, speed: 71, resilience: 50, raw: { offersDeclined: 2 } } },
   ],
+  vm_invites: [{ id: 'i1', inviter_id: ME, channel: 'sms', contact: '+1 555 010 2233', invitee_name: 'Sam', room_code: null, created_at: iso(3_600_000), joined_at: null }],
   vm_personas: [
     { user_id: ME, risk: 61, horizon: 64, negotiation: 71, cooperation: 48, speed: 66, resilience: 55, label: 'Dealmaker', games_counted: 7 },
     { user_id: DEV, risk: 30, horizon: 40, negotiation: 50, cooperation: 60, speed: 40, resilience: 50, label: 'Operator', games_counted: 3 },
@@ -69,6 +73,22 @@ const RPC = {
   vm_respond_to_challenge: () => 'r1',
   vm_cancel_challenge: () => null,
   vm_express_premium_interest: () => null,
+  vm_my_referral_code: () => 'MB7K2QWX',
+  vm_my_profile: () => T.vm_profiles.find((p) => p.id === ME),
+  vm_profile_cards: ({ p_ids }) => T.vm_profiles.filter((p) => p_ids.includes(p.id)).map((p) => ({ ...p, locked: false })),
+  vm_match_suggestions_gated: (a) => RPC.vm_match_suggestions(a),
+  vm_access: () => ({ level: guest ? 'anonymous' : 'member', tier: 'premium', paid: true, survey_score: 85, email_verified: true, can_see_bios: !guest, can_get_intros: !guest,
+    paid_features: { lessons: true, matchmaking_plus: true, prizes: true, classes: true, pitch_reviews: true, recruiting: true, coaching: false, consulting: false } }),
+  vm_recompute_survey: () => [{ score: 85, bonus_awarded: 100 }],
+  vm_finish_onboarding: () => null,
+  vm_log_invite: () => 'inv-new',
+  vm_claim_referral: () => true,
+  vm_set_location: () => null,
+  vm_public_profile: ({ p_user_id }) => ({ ...T.vm_profiles.find((p) => p.id === p_user_id), social_links: { linkedin: 'https://linkedin.com/in/devpatel', website: 'https://payflow.app' }, current_project: 'Payflow — invoicing for youth sports clubs', goals: 'find a technical co-founder', city: 'Brooklyn', region: 'NY' }),
+  vm_match_suggestions: () => [
+    { user_id: DEV, score: 79, reasons: ["Matches what you're looking for", 'Same industry', 'Complementary stage — one has done what the other is doing', 'Nearby — Brooklyn'], distance_km: 5 },
+    { user_id: LENA, score: 24, reasons: ['Complementary playing styles (Dealmaker + Operator)', 'Both have a project underway'], distance_km: null },
+  ],
   vm_assign_seat_colors: ({ p_room_id }) => T.vm_room_seats.filter((s) => s.room_id === p_room_id).map((s) => ({ seat_index: s.seat_index, color_key: s.color_key ?? null })),
   vm_arena_record: ({ p_user_id }) => ({
     profile: T.vm_profiles.find((p) => p.id === p_user_id),
@@ -105,7 +125,7 @@ function query(table) {
   return b;
 }
 
-const session = { user: { id: ME, email: guest ? undefined : 'michael@example.com', is_anonymous: guest } };
+const session = signedOut ? null : { user: { id: ME, email: guest ? undefined : 'michael@example.com', is_anonymous: guest } };
 
 export const supabase = {
   auth: {

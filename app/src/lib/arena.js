@@ -28,16 +28,18 @@ export const PERSONA_BLURBS = {
 };
 
 // ---- Profile ---------------------------------------------------------------
-export async function getMyProfile(userId) {
-  const { data, error } = await supabase.from('vm_profiles').select('*').eq('id', userId).maybeSingle();
-  if (error) throw error;
-  return data;
+// Own row comes through vm_my_profile(): bio and contact columns are not
+// selectable through the table by other members (migration 0011).
+export async function getMyProfile() {
+  return rpc('vm_my_profile');
 }
 
 export async function updateMyProfile(userId, patch) {
-  const { data, error } = await supabase.from('vm_profiles').update(patch).eq('id', userId).select().single();
+  const { error } = await supabase.from('vm_profiles').update(patch).eq('id', userId);
   if (error) throw new Error(cleanError(error.message));
-  return data;
+  // Completing sections of the questionnaire earns bonus points (non-contact fields only).
+  await rpc('vm_recompute_survey').catch(() => {});
+  return getMyProfile();
 }
 
 export async function uploadAvatarPhoto(userId, file) {
@@ -96,16 +98,14 @@ export async function listFriendships(userId) {
   return data;
 }
 
+// Member cards for lists; headline/stage/industry are included only when the
+// viewer has a verified email and a completed profile (card.locked says which).
 export async function fetchProfiles(ids) {
   const unique = [...new Set(ids)].filter(Boolean);
   if (unique.length === 0) return {};
-  const { data, error } = await supabase
-    .from('vm_profiles')
-    .select('id, display_name, avatar, photo_url, tier, is_guest, headline, business_stage, industry, last_seen_at, color_ranks')
-    .in('id', unique);
-  if (error) throw error;
+  const data = await rpc('vm_profile_cards', { p_ids: unique });
   const byId = {};
-  for (const p of data) byId[p.id] = p;
+  for (const p of data ?? []) byId[p.id] = p;
   return byId;
 }
 
@@ -179,3 +179,77 @@ export function timeUntil(iso) {
   if (s < 86400) return `in ${Math.floor(s / 3600)}h`;
   return `in ${Math.floor(s / 86400)}d`;
 }
+
+// ---- v2: social, invites, matching, location ------------------------------------
+export const SOCIAL_FIELDS = [
+  ['linkedin', 'LinkedIn', 'https://linkedin.com/in/you'],
+  ['x', 'X / Twitter', 'https://x.com/you'],
+  ['instagram', 'Instagram', 'https://instagram.com/you'],
+  ['website', 'Website', 'https://yourcompany.com'],
+  ['youtube', 'YouTube', 'https://youtube.com/@you'],
+];
+
+export async function changeEmail(newEmail) {
+  const { error } = await supabase.auth.updateUser({ email: newEmail });
+  if (error) throw new Error(cleanError(error.message));
+}
+
+export const myReferralCode = () => rpc('vm_my_referral_code');
+export const logInvite = (channel, contact = null, name = null, roomCode = null) =>
+  rpc('vm_log_invite', { p_channel: channel, p_contact: contact, p_name: name, p_room_code: roomCode });
+export const claimReferral = (code) => rpc('vm_claim_referral', { p_code: code });
+export const matchSuggestions = (limit = 12) => rpc('vm_match_suggestions_gated', { p_limit: limit });
+export const publicProfile = (userId) => rpc('vm_public_profile', { p_user_id: userId });
+export const setLocation = (share, lat = null, lng = null, city = null, region = null) =>
+  rpc('vm_set_location', { p_share: share, p_lat: lat, p_lng: lng, p_city: city, p_region: region });
+
+export async function myInvites(limit = 20) {
+  const { data, error } = await supabase.from('vm_invites').select('*').order('created_at', { ascending: false }).limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+/** The link a friend taps: lands on the app with your referral code, and
+ * straight into a table when a room code is given. */
+export function inviteUrl(code, roomCode = null) {
+  const url = new URL(window.location.origin + '/');
+  if (code) url.searchParams.set('ref', code);
+  if (roomCode) url.searchParams.set('room', roomCode);
+  return url.toString();
+}
+
+const REF_KEY = 'va.ref';
+export function captureReferralFromUrl() {
+  try {
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) localStorage.setItem(REF_KEY, ref.toUpperCase());
+    return ref ? ref.toUpperCase() : localStorage.getItem(REF_KEY);
+  } catch { return null; }
+}
+export function clearStoredReferral() { try { localStorage.removeItem(REF_KEY); } catch { /* ignore */ } }
+export function storedReferral() { try { return localStorage.getItem(REF_KEY); } catch { return null; } }
+
+// ---- v2.1: onboarding, access levels, social sign-in ------------------------------
+export const myAccess = () => rpc('vm_access');
+export const recomputeSurvey = () => rpc('vm_recompute_survey').then((rows) => rows?.[0] ?? null);
+export const finishOnboarding = () => rpc('vm_finish_onboarding');
+
+/** OAuth providers must be enabled in Supabase → Authentication → Providers
+ * (client id + secret from Google Cloud / Meta for Developers / LinkedIn
+ * Developers). Until then the button shows the provider's error. */
+export const OAUTH_PROVIDERS = [
+  ['google', 'Google'],
+  ['facebook', 'Facebook'],
+  ['linkedin_oidc', 'LinkedIn'],
+];
+export async function signInWith(provider) {
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin + '/' } });
+  if (error) throw new Error(cleanError(error.message));
+}
+
+export const ACCESS_COPY = {
+  anonymous: 'You are playing as a guest: one game, no questions asked. Create a free account to keep playing and keep your stats.',
+  unverified: 'Confirm your email (check your inbox) to keep your stats and unlock intros.',
+  verified: 'Complete your member profile to see bios, get introductions, and earn bonus points.',
+  member: null,
+};

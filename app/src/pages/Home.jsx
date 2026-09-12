@@ -4,11 +4,14 @@ import {
   onlineMembers, replyToTopic, respondToChallenge, todayQuiz, todayTopic, PERSONA_BLURBS, timeAgo, timeUntil,
 } from '../lib/arena.js';
 import Avatar from '../components/Avatar.jsx';
+import InvitePanel from '../components/InvitePanel.jsx';
+import AccessNotice from '../components/AccessNotice.jsx';
+import PaidFeatures from '../components/PaidFeatures.jsx';
 
 // The Lobby (blueprint §10): who's at the table, today's topic, the quiz,
 // open challenges, games waiting on you, and your streak. Every block loads
 // on its own so one slow query never blanks the screen.
-export default function Home({ session, profile, onNavigate, onOpenRoom, onProfileChanged }) {
+export default function Home({ session, profile, access, onNavigate, onOpenRoom, onProfileChanged }) {
   const isGuest = session.user.is_anonymous;
   const [streak, setStreak] = useState(null);
   const [online, setOnline] = useState([]);
@@ -119,11 +122,7 @@ export default function Home({ session, profile, onNavigate, onOpenRoom, onProfi
       </header>
 
       {error && <div className="arena-error">{error}</div>}
-      {isGuest && (
-        <div className="va-notice">
-          You're playing as a guest — your history lasts for this session only. <button className="arena-link-button" onClick={() => onNavigate('me')}>Create a free account</button> to keep it.
-        </div>
-      )}
+      <AccessNotice access={access} isGuest={isGuest} onNavigate={onNavigate} />
 
       <div className="va-grid">
         <section className="arena-panel va-span2">
@@ -201,6 +200,16 @@ export default function Home({ session, profile, onNavigate, onOpenRoom, onProfi
             </div>
           </section>
         )}
+
+        {!isGuest && (
+          <section className="arena-panel">
+            <InvitePanel session={session} compact title="Invite a friend" />
+          </section>
+        )}
+
+        <section className="arena-panel va-span2">
+          <PaidFeatures access={access} onNavigate={onNavigate} />
+        </section>
 
         <section className="arena-panel va-play-cta">
           <h2>Get in the game</h2>

@@ -486,6 +486,11 @@ body {
 .va-app { min-height: 100vh; padding-bottom: 76px; }
 .va-app.in-room { padding-bottom: 0; }
 .va-main { max-width: 900px; margin: 0 auto; }
+/* In a room the shell's 900px column is lifted so the VentureFlow board
+   can use its own layout (up to 1360px, board + sticky sidebar) exactly
+   as it does when played standalone. */
+.va-app.in-room .va-main { max-width: none; margin: 0; }
+.va-board-stage { background: var(--vf-cream, #fdf3e3); min-height: 100vh; }
 .arena-brand.compact { margin-top: 14px; }
 .arena-brand.compact .arena-brand-name { font-size: 1.25rem; }
 .arena-page { padding: 12px 20px 24px; }
@@ -632,3 +637,43 @@ body {
   .va-person-card { flex-direction: column; align-items: stretch; }
   .va-person-actions { justify-content: flex-start; padding-left: 56px; }
 }
+
+/* v2: invites, matches, socials, location */
+.va-invite h2 { margin-top: 0; }
+.va-invite-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 520px) { .va-invite-fields { grid-template-columns: 1fr; } }
+.va-invite-fields .arena-field { margin-bottom: 8px; }
+.va-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.va-invite-actions .arena-button { margin-bottom: 0; }
+.va-invite-code { font-size: 0.82rem; color: var(--va-muted); margin: 10px 0 0; word-break: break-all; }
+.va-invite-code .mono { font-family: ui-monospace, Menlo, monospace; }
+.va-reasons { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.va-reason { font-size: 0.72rem; background: var(--va-felt-soft); color: #124a33; border-radius: 999px; padding: 2px 8px; }
+.va-socials { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.va-social { font-size: 0.85rem; background: #eef1ee; color: var(--va-ink); padding: 4px 10px; border-radius: 999px; text-decoration: none; font-weight: 600; }
+.va-social:hover { background: var(--va-felt-soft); }
+.va-inline-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.va-switch { display: flex; gap: 10px; align-items: flex-start; font-size: 0.92rem; margin: 6px 0 16px; cursor: pointer; }
+.va-switch input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--va-felt); }
+
+/* v2.1: onboarding, access, paid features */
+.va-auth-paths .arena-button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 12px 14px; }
+.va-auth-sub { font-weight: 400; font-size: 0.85rem; color: #555; }
+.va-auth-divider { display: flex; align-items: center; gap: 10px; font-size: 0.8rem; color: var(--va-muted); margin: 6px 0 12px; }
+.va-auth-divider::before, .va-auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--va-line); }
+.va-oauth-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.va-oauth-row .arena-button { margin-bottom: 0; flex: 1; }
+.va-onboard { max-width: 640px; margin: 0 auto; }
+.va-onboard-head { margin-bottom: 12px; }
+.va-progress { height: 6px; background: var(--va-line); border-radius: 999px; overflow: hidden; margin: 6px 0 10px; }
+.va-progress span { display: block; height: 100%; background: var(--va-felt); transition: width .3s; }
+.va-onboard-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.va-onboard-actions .arena-button { margin-bottom: 0; }
+.va-feature-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.va-feature-chip { display: inline-flex; align-items: center; gap: 6px; background: #f7f7f3; border: 1px solid var(--va-line); border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 0.85rem; cursor: pointer; }
+.va-feature-chip.on { background: var(--va-felt-soft); border-color: var(--va-felt); }
+.va-lock { font-size: 0.75rem; opacity: 0.7; }
+.va-feature-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 720px) { .va-feature-grid { grid-template-columns: 1fr 1fr; } }
+.va-feature { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--va-line); border-radius: 10px; font-size: 0.9rem; }
+.va-feature.on { border-color: var(--va-felt); background: var(--va-felt-soft); }

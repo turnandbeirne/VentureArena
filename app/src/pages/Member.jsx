@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { arenaRecord, listColors, requestFriend, sendChallenge, TIER_LABELS } from '../lib/arena.js';
+import { arenaRecord, listColors, publicProfile, requestFriend, sendChallenge, SOCIAL_FIELDS, TIER_LABELS } from '../lib/arena.js';
 import Avatar from '../components/Avatar.jsx';
 import ArenaRecord from '../components/ArenaRecord.jsx';
 
@@ -7,6 +7,7 @@ import ArenaRecord from '../components/ArenaRecord.jsx';
 export default function Member({ session, userId, onBack }) {
   const [record, setRecord] = useState(null);
   const [colors, setColors] = useState([]);
+  const [pub, setPub] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const isMe = userId === session.user.id;
@@ -14,6 +15,7 @@ export default function Member({ session, userId, onBack }) {
   useEffect(() => {
     setRecord(null);
     arenaRecord(userId).then(setRecord).catch((err) => setError(err.message));
+    publicProfile(userId).then(setPub).catch(() => {});
     listColors().then(setColors).catch(() => {});
   }, [userId]);
 
@@ -49,8 +51,19 @@ export default function Member({ session, userId, onBack }) {
                 {record.persona?.label || 'Explorer'} · {TIER_LABELS[p.tier] || 'Free'}{p.is_guest ? ' guest' : ' member'}
                 {p.business_stage ? ` · ${p.business_stage}` : ''}{p.industry ? ` · ${p.industry}` : ''}
               </p>
+              {(pub?.locked || p.locked) && !isMe && <p className="va-notice">Bio, goals and contact links are shown to members with a verified email and a completed profile. Finish yours on the Me tab to see them.</p>}
               {p.headline && <p className="va-member-headline">{p.headline}</p>}
+              {pub?.current_project && <p><strong>Building:</strong> {pub.current_project}</p>}
+              {pub?.goals && <p><strong>Goals:</strong> {pub.goals}</p>}
               {p.looking_for && <p className="arena-muted">Looking for: {p.looking_for}</p>}
+              {pub?.city && <p className="arena-muted">📍 {pub.city}{pub.region ? `, ${pub.region}` : ''}</p>}
+              {pub?.social_links && Object.keys(pub.social_links).length > 0 && (
+                <div className="va-socials">
+                  {SOCIAL_FIELDS.filter(([k]) => pub.social_links[k]).map(([k, label]) => (
+                    <a key={k} className="va-social" href={pub.social_links[k]} target="_blank" rel="noreferrer noopener">{label} ↗</a>
+                  ))}
+                </div>
+              )}
             </div>
             {!isMe && (
               <div className="va-person-actions">
